@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto-Browser</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="brand">
+                <i class="fa-solid fa-earth-americas"></i>
+                <h2>AutoBrowser</h2>
+            </div>
+
+            <div class="section-title">PROFILES</div>
+            <div class="profile-list" id="profile-list">
+                <!-- Profiles injected here -->
+            </div>
+
+            <button class="btn btn-primary mt-2 flex-center" id="btn-add-profile">
+                <i class="fa-solid fa-plus"></i> New Profile
+            </button>
+
+            <div class="section-title mt-4">SCRIPTS</div>
+            <div class="script-list" id="script-list">
+                <!-- Scripts injected here -->
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+
+            <!-- Dashboard View -->
+            <div id="view-dashboard" class="view active">
+                <header>
+                    <h1 id="selected-profile-name">Select a Profile</h1>
+                    <div class="actions" id="main-actions" style="display: none;">
+                        <button class="btn btn-success" id="btn-launch"><i class="fa-solid fa-play"></i> Launch</button>
+                        <button class="btn btn-danger" id="btn-close" style="display:none;"><i
+                                class="fa-solid fa-stop"></i> Close Browser</button>
+                        <button class="btn btn-outline" id="btn-edit"><i class="fa-solid fa-gear"></i> Settings</button>
+                        <button class="btn btn-danger-outline" id="btn-delete"><i class="fa-solid fa-trash"></i>
+                            Delete</button>
+                    </div>
+                </header>
+
+                <div class="content-body" id="profile-details" style="display: none;">
+
+                    <div class="card glass">
+                        <h3><i class="fa-solid fa-server"></i> Network & Proxy</h3>
+                        <p><strong>Proxy:</strong> <span class="badge" id="lbl-proxy">None</span></p>
+                    </div>
+
+                    <div class="card glass mt-4">
+                        <h3><i class="fa-solid fa-video"></i> Automation & Record</h3>
+                        <div class="action-grid">
+                            <button class="btn btn-outline" id="btn-start-record"><i
+                                    class="fa-solid fa-circle-dot text-danger"></i> Start Recording</button>
+                            <button class="btn btn-danger" id="btn-stop-record" style="display: none;"><i
+                                    class="fa-solid fa-stop"></i> Stop & Save</button>
+                        </div>
+                        <p class="text-sm text-dim mt-2" id="record-status">Browser must be running to record actions.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Empty State -->
+                <div class="empty-state" id="empty-state">
+                    <i class="fa-solid fa-layer-group"></i>
+                    <h2>No Profile Selected</h2>
+                    <p>Create or select a profile from the sidebar to get started.</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal-overlay" id="modal-add-profile">
+        <div class="modal glass">
+            <div class="modal-header">
+                <h3>Create New Profile</h3>
+                <button class="btn-icon" id="btn-close-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Profile Name</label>
+                    <input type="text" id="inp-profile-name" placeholder="e.g. Account_01" class="input">
+                </div>
+                <div class="form-group">
+                    <label>Proxy (Optional)</label>
+                    <input type="text" id="inp-proxy" placeholder="socks5://127.0.0.1:1080" class="input">
+                </div>
+                <div class="form-group">
+                    <label>Proxy Username (Optional)</label>
+                    <input type="text" id="inp-proxy-user" placeholder="username" class="input">
+                </div>
+                <div class="form-group">
+                    <label>Proxy Password (Optional)</label>
+                    <input type="password" id="inp-proxy-pass" placeholder="••••••••" class="input">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="btn-submit-profile">Create Profile</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modal-save-record">
+        <div class="modal glass">
+            <div class="modal-header">
+                <h3>Save Recording</h3>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Script Name (.js)</label>
+                    <input type="text" id="inp-script-name" placeholder="auto_login" class="input">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="btn-submit-record">Save Script</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

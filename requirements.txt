@@ -1,0 +1,8 @@
+playwright>=1.40.0
+click>=8.1.0
+rich>=13.0.0
+pyfiglet>=1.0.0
+prompt_toolkit>=3.0.0
+fastapi>=0.100.0
+uvicorn>=0.23.0
+pywebview>=4.3.3
