@@ -281,3 +281,79 @@ input:checked + .slider:before { transform: translateX(20px); }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* ─── Sync Panel ───────────────────────────────────── */
+.config-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+}
+.config-row label {
+    font-size: 13px;
+    color: var(--color-dim);
+    min-width: 100px;
+    padding-top: 4px;
+}
+
+.follower-checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+    user-select: none;
+}
+.checkbox-label:hover {
+    background: rgba(255,255,255,0.1);
+    border-color: var(--border-hover);
+}
+.checkbox-label input[type="checkbox"] {
+    accent-color: var(--accent);
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.text-success { color: var(--success); }
+
+/* ─── Script Editor textarea ──────────────────────── */
+.code-editor {
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    resize: vertical;
+    min-height: 200px;
+    tab-size: 2;
+    white-space: pre;
+    overflow-x: auto;
+}
+
+/* ─── Wide modal for Script Editor ────────────────── */
+.modal-wide {
+    width: 600px;
+}
+
+/* ─── Action grid improvements ────────────────────── */
+.action-grid {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* ─── Disabled button ─────────────────────────────── */
+.btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+

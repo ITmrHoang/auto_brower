@@ -31,6 +31,9 @@
             <div class="script-list" id="script-list">
                 <!-- Scripts injected here -->
             </div>
+            <button class="btn btn-outline mt-2 flex-center" id="btn-new-script">
+                <i class="fa-solid fa-file-code"></i> New Script
+            </button>
         </div>
 
         <!-- Main Content -->
@@ -57,6 +60,33 @@
                         <p><strong>Proxy:</strong> <span class="badge" id="lbl-proxy">None</span></p>
                     </div>
 
+                    <!-- Sync Panel -->
+                    <div class="card glass mt-4" id="sync-card">
+                        <h3><i class="fa-solid fa-arrows-rotate"></i> Sync (Đồng bộ thao tác)</h3>
+                        <div id="sync-panel-content">
+                            <div class="config-row">
+                                <label>Root Profile:</label>
+                                <span class="badge" id="sync-root-label">—</span>
+                            </div>
+                            <div class="config-row mt-2">
+                                <label>Followers:</label>
+                                <div id="sync-follower-list" class="follower-checkboxes">
+                                    <span class="text-dim text-sm">Cần ít nhất 2 profile đang chạy</span>
+                                </div>
+                            </div>
+                            <div class="action-grid mt-4">
+                                <button class="btn btn-success" id="btn-sync-start" disabled>
+                                    <i class="fa-solid fa-play"></i> Start Sync
+                                </button>
+                                <button class="btn btn-danger" id="btn-sync-stop" style="display: none;">
+                                    <i class="fa-solid fa-stop"></i> Stop Sync
+                                </button>
+                            </div>
+                            <p class="text-sm text-dim mt-2" id="sync-status-text">Chọn profile làm Root, các profile khác đang chạy sẽ trở thành Follower.</p>
+                        </div>
+                    </div>
+
+                    <!-- Record Card -->
                     <div class="card glass mt-4">
                         <h3><i class="fa-solid fa-video"></i> Automation & Record</h3>
                         <div class="action-grid">
@@ -81,7 +111,7 @@
         </div>
     </div>
 
-    <!-- Modals -->
+    <!-- Modal: Add Profile -->
     <div class="modal-overlay" id="modal-add-profile">
         <div class="modal glass">
             <div class="modal-header">
@@ -112,6 +142,7 @@
         </div>
     </div>
 
+    <!-- Modal: Save Recording -->
     <div class="modal-overlay" id="modal-save-record">
         <div class="modal glass">
             <div class="modal-header">
@@ -125,6 +156,75 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-primary" id="btn-submit-record">Save Script</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Run Script -->
+    <div class="modal-overlay" id="modal-run-script">
+        <div class="modal glass">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-play"></i> Run Script</h3>
+                <button class="btn-icon btn-close-any-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Script</label>
+                    <input type="text" id="run-script-name" class="input" readonly>
+                </div>
+                <div class="form-group">
+                    <label>Target Profiles</label>
+                    <div id="run-target-list" class="follower-checkboxes">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+                <div class="config-row mt-2">
+                    <div class="form-group" style="flex:1">
+                        <label>Loop (vòng lặp)</label>
+                        <input type="number" id="run-loop" class="input" value="1" min="1">
+                    </div>
+                    <div class="form-group" style="flex:1">
+                        <label>Delay (ms giữa các lần)</label>
+                        <input type="number" id="run-delay" class="input" value="0" min="0" step="100">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-success" id="btn-submit-run-script"><i class="fa-solid fa-play"></i> Run</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Script Editor -->
+    <div class="modal-overlay" id="modal-script-editor">
+        <div class="modal glass modal-wide">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-file-code"></i> Script Editor</h3>
+                <button class="btn-icon btn-close-any-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Script Name (.js)</label>
+                    <input type="text" id="editor-script-name" placeholder="my_script" class="input">
+                </div>
+                <div class="form-group">
+                    <label>JavaScript Code</label>
+                    <textarea id="editor-code" class="input code-editor" rows="12" spellcheck="false"
+                        placeholder="// Viết code JS ở đây&#10;document.title = 'Hello World';"></textarea>
+                </div>
+                <div class="config-row">
+                    <div class="form-group" style="flex:1">
+                        <label>Loop (vòng lặp)</label>
+                        <input type="number" id="editor-loop" class="input" value="1" min="1">
+                    </div>
+                    <div class="form-group" style="flex:1">
+                        <label>Delay (ms giữa các lần)</label>
+                        <input type="number" id="editor-delay" class="input" value="0" min="0" step="100">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="btn-save-script"><i class="fa-solid fa-save"></i> Save Script</button>
             </div>
         </div>
     </div>

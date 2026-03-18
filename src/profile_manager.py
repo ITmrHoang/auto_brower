@@ -85,7 +85,48 @@ class ProfileManager:
         profile_dir = self._profile_dir(name)
         if not profile_dir.exists():
             raise ValueError(f"Profile '{name}' not found")
-        shutil.rmtree(profile_dir)
+            
+        import time
+        import platform
+        import subprocess
+        max_retries = 3
+        for i in range(max_retries):
+            try:
+                shutil.rmtree(profile_dir)
+                break
+            except Exception as e:
+                time.sleep(1)
+                if i == max_retries - 1:
+                    # Last resort, try to remove ignoring errors to clear at least most of the data
+                    shutil.rmtree(profile_dir, ignore_errors=True)
+                    
+        # Deep Cleanup (v1.0.3): Check if folder still exists (e.g locked files by OS)
+        if profile_dir.exists():
+            console.print(f"[yellow]Python shutil couldn't fully clear '{profile_dir}'. Escalating to OS deep cleanup...[/yellow]")
+            try:
+                if platform.system() == "Windows":
+                    # Use native Windows command to force remove directory
+                    subprocess.run(
+                        f'rmdir /s /q "{profile_dir}"', 
+                        shell=True,
+                        check=False,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL
+                    )
+                else:
+                    subprocess.run(
+                        f'rm -rf "{profile_dir}"',
+                        shell=True,
+                        check=False,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL
+                    )
+                
+                # Final check after OS level delete
+                if profile_dir.exists():
+                    console.print(f"[red]Warning: Some files in '{profile_dir}' are permanently locked by the OS and couldn't be deleted.[/red]")
+            except Exception as e:
+                console.print(f"[red]OS-level cleanup failed: {e}[/red]")
 
     def list_profiles(self) -> List[dict]:
         """List all profiles."""

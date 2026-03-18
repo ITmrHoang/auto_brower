@@ -22,7 +22,7 @@
 ## 📦 Cài đặt
 
 ### Yêu cầu
-- Python 3.9+
+- Python 3.11 hoặc 3.12 (Bắt buộc dùng bản này để cài đặt thư viện giao diện Desktop GUI. **Không dùng Python 3.13 hoặc 3.14**)
 - Windows 10/11
 
 ### Bước 1: Clone repository
@@ -32,13 +32,30 @@ git clone <repo-url>
 cd auto-brower
 ```
 
-### Bước 2: Cài đặt thư viện
+### Bước 2: Tạo môi trường ảo (Khuyên dùng)
+
+Sử dụng môi trường ảo (`venv`) giúp tránh xung đột thư viện với hệ thống và đặc biệt cần thiết trên Windows để cài đặt các package GUI một cách trơn tru.
 
 ```bash
-pip install -r requirements.txt
+# Cài đặt công cụ uv siêu tốc (nếu máy chưa có)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Tạo môi trường ảo tự động tải Python 3.12 (không cần cài Python vào máy)
+uv venv --python 3.12 venv
+
+# Kích hoạt môi trường ảo (trên CMD)
+venv\Scripts\activate
+# Hoặc trên PowerShell: 
+# .\venv\Scripts\Activate
 ```
 
-### Bước 3: Cài Playwright browser (lần đầu)
+### Bước 3: Cài đặt thư viện bằng uv pip
+
+```bash
+uv pip install -r requirements.txt
+```
+
+### Bước 4: Cài Playwright browser (lần đầu)
 
 ```bash
 playwright install chromium

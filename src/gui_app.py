@@ -8,6 +8,7 @@ import os
 import json
 from pathlib import Path
 from typing import List, Optional, Dict
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Body
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,7 +20,28 @@ from .browser_launcher import BrowserLauncher
 from .sync_engine import SyncEngine
 
 
-app = FastAPI(title="Auto-Browser GUI API")
+# Global instances (will be initialized on startup)
+config: AppConfig = None
+profile_mgr: ProfileManager = None
+launcher: BrowserLauncher = None
+sync_engine: SyncEngine = None
+
+
+@asynccontextmanager
+async def lifespan(app):
+    """Application lifespan: startup and shutdown events."""
+    global config, profile_mgr, launcher, sync_engine
+    base_dir = str(Path(__file__).parent.parent)
+    config = AppConfig(base_dir=base_dir)
+    profile_mgr = ProfileManager(config.data_dir)
+    launcher = BrowserLauncher(config)
+    sync_engine = SyncEngine(launcher)
+    yield
+    if launcher:
+        await launcher.shutdown()
+
+
+app = FastAPI(title="Auto-Browser GUI API", lifespan=lifespan)
 
 # Setup CORS
 app.add_middleware(
@@ -30,27 +52,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global instances (will be initialized on startup)
-config: AppConfig = None
-profile_mgr: ProfileManager = None
-launcher: BrowserLauncher = None
-sync_engine: SyncEngine = None
 
-
-@app.on_event("startup")
-async def startup_event():
-    global config, profile_mgr, launcher, sync_engine
-    base_dir = str(Path(__file__).parent.parent)
-    config = AppConfig(base_dir=base_dir)
-    profile_mgr = ProfileManager(config.data_dir)
-    launcher = BrowserLauncher(config)
-    sync_engine = SyncEngine(launcher)
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    if launcher:
-        await launcher.shutdown()
+# Shutdown logic is handled in lifespan context manager above
 
 
 # --- Models ---
@@ -77,6 +80,15 @@ class LaunchReq(BaseModel):
 class ScriptRunReq(BaseModel):
     script_name: str
     target_profiles: List[str]
+    loop: int = 1
+    delay_ms: int = 0
+
+
+class ScriptSaveReq(BaseModel):
+    name: str
+    code: str
+    loop: int = 1
+    delay_ms: int = 0
 
 
 class SyncStartReq(BaseModel):
@@ -121,7 +133,7 @@ def create_profile(req: ProfileCreateReq):
 @app.put("/api/profiles/{name}")
 def update_profile(name: str, req: ProfileUpdateReq):
     try:
-        updates = {k: v for k, v in req.dict().items() if v is not None}
+        updates = {k: v for k, v in req.model_dump().items() if v is not None}
         if updates:
             p = profile_mgr.update(name, **updates)
             return p
@@ -131,11 +143,11 @@ def update_profile(name: str, req: ProfileUpdateReq):
 
 
 @app.delete("/api/profiles/{name}")
-def delete_profile(name: str):
+async def delete_profile(name: str):
     try:
-        # Close if running
+        # Close browser if running before deleting profile
         if launcher and name in launcher.list_running():
-            asyncio.create_task(launcher.close(name))
+            await launcher.close(name)
         
         profile_mgr.delete(name)
         return {"status": "success"}
@@ -211,18 +223,51 @@ async def run_script(req: ScriptRunReq, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=404, detail="Script not found")
         
     js_code = script_path.read_text(encoding="utf-8")
+    loop_count = max(1, req.loop)
+    delay_ms = max(0, req.delay_ms)
     
     async def _run():
-        for name in req.target_profiles:
-            inst = launcher.get_instance(name)
-            if inst and inst.active_page:
-                try:
-                    await inst.active_page.evaluate(js_code)
-                except Exception as e:
-                    print(f"Script run error on {name}: {e}")
+        for iteration in range(loop_count):
+            for name in req.target_profiles:
+                inst = launcher.get_instance(name)
+                if inst and inst.active_page:
+                    try:
+                        await inst.active_page.evaluate(js_code)
+                    except Exception as e:
+                        print(f"Script run error on {name} (loop {iteration+1}): {e}")
+            if iteration < loop_count - 1 and delay_ms > 0:
+                await asyncio.sleep(delay_ms / 1000.0)
                     
     background_tasks.add_task(_run)
-    return {"status": "running"}
+    return {"status": "running", "loop": loop_count, "delay_ms": delay_ms}
+
+
+@app.post("/api/scripts/save")
+def save_script(req: ScriptSaveReq):
+    """Save a manually created script with optional loop/delay wrapper."""
+    filename = req.name
+    if not filename.endswith(".js"):
+        filename += ".js"
+    
+    # Build JS code with loop/delay wrapper if configured
+    code = req.code.strip()
+    if req.loop > 1:
+        wrapped = f"// Auto-wrapped with loop={req.loop}, delay={req.delay_ms}ms\n"
+        wrapped += "(async () => {\n"
+        wrapped += f"  for (let i = 0; i < {req.loop}; i++) {{\n"
+        wrapped += f"    // --- Iteration i+1 ---\n"
+        for line in code.split("\n"):
+            wrapped += f"    {line}\n"
+        if req.delay_ms > 0:
+            wrapped += f"    if (i < {req.loop - 1}) await new Promise(r => setTimeout(r, {req.delay_ms}));\n"
+        wrapped += "  }\n"
+        wrapped += "})();\n"
+        code = wrapped
+    
+    config.scripts_dir.mkdir(parents=True, exist_ok=True)
+    script_path = config.scripts_dir / filename
+    script_path.write_text(code, encoding="utf-8")
+    return {"status": "success", "file": filename}
 
 
 # Sync & Record routes
@@ -306,12 +351,14 @@ def generate_script_from_events(events):
         lines.append("  await new Promise(r => setTimeout(r, 500));")
         
         if t == "click" and s:
-            lines.append(f"  const el_{len(lines)} = document.querySelector(`{s}`);")
-            lines.append(f"  if (el_{len(lines)}) el_{len(lines)}.click();")
+            el_id = f"el_{len(lines)}"
+            lines.append(f"  const {el_id} = document.querySelector(`{s}`);")
+            lines.append(f"  if ({el_id}) {el_id}.click();")
         elif t == "input" and s:
             val = ev.get("value", "").replace('`', '\\`').replace('$', '\\$')
-            lines.append(f"  const el_{len(lines)} = document.querySelector(`{s}`);")
-            lines.append(f"  if (el_{len(lines)}) {{ el_{len(lines)}.value = `{val}`; el_{len(lines)}.dispatchEvent(new Event('input', {{bubbles: true}})); el_{len(lines)}.dispatchEvent(new Event('change', {{bubbles: true}})); }}")
+            el_id = f"el_{len(lines)}"
+            lines.append(f"  const {el_id} = document.querySelector(`{s}`);")
+            lines.append(f"  if ({el_id}) {{ {el_id}.value = `{val}`; {el_id}.dispatchEvent(new Event('input', {{bubbles: true}})); {el_id}.dispatchEvent(new Event('change', {{bubbles: true}})); }}")
         elif t == "scroll":
             x, y = ev.get("scrollX", 0), ev.get("scrollY", 0)
             lines.append(f"  window.scrollTo({x}, {y});")

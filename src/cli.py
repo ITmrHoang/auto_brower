@@ -62,14 +62,7 @@ def get_sync_engine() -> SyncEngine:
 
 def run_async(coro):
     """Helper to run async functions from sync click commands."""
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            return loop.run_until_complete(coro)
-        else:
-            return asyncio.run(coro)
-    except RuntimeError:
-        return asyncio.run(coro)
+    return asyncio.run(coro)
 
 
 # ─── Main CLI Group ──────────────────────────────────────────
@@ -117,11 +110,25 @@ def profile_list():
 @click.confirmation_option(prompt="Are you sure you want to delete this profile?")
 def profile_delete(name):
     """Delete a browser profile"""
-    try:
-        get_profile_mgr().delete(name)
-        console.print(f"[green]✓ Profile '{name}' deleted[/green]")
-    except ValueError as e:
-        console.print(f"[red]✗ {e}[/red]")
+    async def _do_delete():
+        launcher = get_launcher()
+        # Close browser if running
+        if name in launcher.list_running():
+            console.print(f"[yellow]Browser for '{name}' is running. Closing it before deletion...[/yellow]")
+            await launcher.close(name)
+            # Short wait to allow playwright/chromium to release file locks
+            import asyncio
+            await asyncio.sleep(2)
+            
+        try:
+            get_profile_mgr().delete(name)
+            console.print(f"[green]✓ Profile '{name}' deleted[/green]")
+        except ValueError as e:
+            console.print(f"[red]✗ {e}[/red]")
+        except Exception as e:
+            console.print(f"[red]✗ Unexpected error during deletion: {e}[/red]")
+            
+    run_async(_do_delete())
 
 
 @profile.command("set-proxy")
@@ -417,19 +424,16 @@ def interactive(profiles, proxy, use_agent, sync_root):
         await chat_iface.run()
         await launcher.shutdown()
 
+    run_async(_interactive())
+
 
 
 # --- GUI Command ---
 
-@cli.command("gui")
-def start_gui():
-    """🖥️ Start the Desktop GUI"""
-    import threading
-    import uvicorn
+def _open_gui_window():
+    """Open a PyWebView window pointing to the local GUI files."""
     import webview
-    import time
-
-    # Setup paths
+    import os
     base_dir = Path(__file__).parent.parent
     gui_dir = base_dir / "gui"
     html_file = gui_dir / "index.html"
@@ -437,51 +441,127 @@ def start_gui():
     if not html_file.exists():
         console.print(f"[red]GUI files not found at {html_file}[/red]")
         return
-        
-    console.print("[cyan]Starting Auto-Browser Desktop...[/cyan]")
+    
+    window = webview.create_window(
+        "Auto-Browser",
+        url=f"file:///{str(html_file.absolute()).replace(os.sep, '/')}",
+        width=1000,
+        height=700,
+        resizable=True,
+        background_color="#0f172a"
+    )
+    # webview.start() blocks until window closes — run in thread
+    webview.start()
+    console.print("[dim]GUI window closed. Server still running. Type 'open' to reopen or Ctrl+C to exit.[/dim]")
+
+
+# Keep a global reference to the Windows handler to prevent garbage collection
+_win_handler_func = None
+
+@cli.command("gui")
+def start_gui():
+    """🖥️ Start the Desktop GUI + API Server (interactive mode)
+    
+    Server stays alive after GUI window closes.
+    Type 'open' to reopen GUI, 'quit' or Ctrl+C to exit.
+    """
+    import threading
+    import uvicorn
+    import time
+    import sys
+    import os
+
+    # Windows specific: force kill all child processes (WebView, Node, Playwright Chromium) if CMD is closed
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+        def console_ctrl_handler(ctrl_type):
+            # 2 = CTRL_CLOSE_EVENT (User clicked 'X' on CMD)
+            if ctrl_type in (0, 1, 2, 5, 6):
+                pid = os.getpid()
+                os.system(f"taskkill /F /T /PID {pid} >nul 2>&1")
+                return True
+            return False
+        global _win_handler_func
+        try:
+            HandlerRoutine = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.DWORD)
+            _win_handler_func = HandlerRoutine(console_ctrl_handler)
+            ctypes.windll.kernel32.SetConsoleCtrlHandler(_win_handler_func, True)
+        except Exception as e:
+            pass
+
+    console.print(Panel(
+        "[bold cyan]Auto-Browser Desktop[/bold cyan]\n"
+        "[dim]Server + GUI khởi động. Tắt cửa sổ GUI không tắt server.[/dim]\n"
+        "[dim]Gõ [bold]open[/bold] để mở lại GUI, [bold]quit[/bold] hoặc Ctrl+C để thoát hoàn toàn.[/dim]",
+        title="🌐 Auto-Browser", border_style="cyan"
+    ))
 
     # Start FastAPI in background
     def run_server():
-        # Hide uvicorn access logs
         import logging
         log = logging.getLogger("uvicorn.access")
         log.setLevel(logging.WARNING)
-        
         from src.gui_app import app
         uvicorn.run(app, host="127.0.0.1", port=8000, log_level="warning")
 
     server_thread = threading.Thread(target=run_server, daemon=True)
     server_thread.start()
-    
-    # Wait a sec for server to bind
     time.sleep(1)
+    console.print("[green]✓ API Server started on http://127.0.0.1:8000[/green]")
 
-    # Launch PyWebView window
-    window = webview.create_window(
-        "Auto-Browser", 
-        url=f"file:///{str(html_file.absolute()).replace(os.sep, '/')}",
-        width=1000, 
-        height=700,
-        resizable=True,
-        background_color="#0f172a"
-    )
+    # Open GUI window in separate thread (non-blocking)
+    gui_thread = threading.Thread(target=_open_gui_window, daemon=True)
+    gui_thread.start()
+    console.print("[green]✓ GUI window opened[/green]\n")
+
+    # Interactive CLI loop — keeps app alive
+    try:
+        while True:
+            try:
+                cmd = input("[auto-browser] > ").strip().lower()
+            except EOFError:
+                break
+            
+            if cmd in ("quit", "exit", "q"):
+                break
+            elif cmd == "open":
+                console.print("[cyan]Opening GUI window...[/cyan]")
+                t = threading.Thread(target=_open_gui_window, daemon=True)
+                t.start()
+            elif cmd == "status":
+                launcher = get_launcher()
+                running = launcher.list_running() if launcher else []
+                if running:
+                    console.print(f"[green]Running browsers:[/green] {', '.join(running)}")
+                else:
+                    console.print("[yellow]No browsers running[/yellow]")
+            elif cmd == "help":
+                console.print("[cyan]Commands:[/cyan]")
+                console.print("  [bold]open[/bold]   — Mở lại cửa sổ GUI")
+                console.print("  [bold]status[/bold] — Xem trạng thái browser")
+                console.print("  [bold]quit[/bold]   — Thoát hoàn toàn")
+            elif cmd == "":
+                pass
+            else:
+                console.print(f"[dim]Unknown command: {cmd}. Type 'help' for available commands.[/dim]")
+    except KeyboardInterrupt:
+        pass
     
-    console.print("[dim]Close the GUI window to exit.[/dim]")
-    webview.start()
+    console.print("\n[yellow]Shutting down...[/yellow]")
     
-    # Upon window close, attempt to shutdown browsers gracefully
+    # Graceful shutdown
     launcher = get_launcher()
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            asyncio.create_task(launcher.shutdown())
-        else:
-            loop.run_until_complete(launcher.shutdown())
+        loop = asyncio.new_event_loop()
+        loop.run_until_complete(launcher.shutdown())
+        loop.close()
     except Exception:
         pass
     
-    console.print("[green]GUI closed.[/green]")
-    os._exit(0)  # Force exit to kill uvicorn thread
+    console.print("[green]Goodbye! 👋[/green]")
+    import os
+    os._exit(0)
 
 
 if __name__ == "__main__":
