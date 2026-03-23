@@ -6,6 +6,7 @@ Handles global app config and paths.
 import os
 import json
 from pathlib import Path
+from typing import Optional, Any
 
 
 class AppConfig:
@@ -18,9 +19,10 @@ class AppConfig:
         "default_window_size": {"width": 800, "height": 600},
         "default_extensions": [],
         "stealth_enabled": True,
+        "randomize_viewport": True,
     }
 
-    def __init__(self, base_dir: str = None):
+    def __init__(self, base_dir: Optional[str] = None):
         self.base_dir = Path(base_dir or os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         self.config_file = self.base_dir / "config.json"
         self.config = self._load_config()
@@ -36,15 +38,17 @@ class AppConfig:
         with open(self.config_file, "w", encoding="utf-8") as f:
             json.dump(self.config, f, indent=2, ensure_ascii=False)
 
-    def get(self, key: str, default=None):
-        return self.config.get(key, default)
+    def get(self, key: str, default: Any = None) -> Any:
+        """Lấy giá trị từ cấu hình với giá trị mặc định nếu không tồn tại (null-safe)."""
+        val = self.config.get(key, default)
+        return val if val is not None else default
 
     def set(self, key: str, value):
         self.config[key] = value
         self.save()
 
     @property
-    def browser_executable(self) -> Path:
+    def browser_executable(self) -> Optional[Path]:
         custom = self.config.get("browser_executable")
         if custom:
             return Path(custom)

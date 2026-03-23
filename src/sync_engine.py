@@ -1,6 +1,14 @@
 """
 Sync Engine for Auto-Browser.
-Synchronizes browser actions from a root browser to follower browsers.
+Cơ chế đồng bộ (Synchronization Mechanism):
+1. Root Profile: Trình duyệt đóng vai trò "Máy chủ phát lệnh" (Nơi user thực tết thao tác).
+2. Followers: Các trình duyệt đóng vai trò "Máy khách nhận lệnh" (Nhận và tái hiện lại hành động).
+3. Cách hoạt động: 
+   - Tiêm mã JS (CAPTURE_EVENTS_JS) vào trang Root để lắng nghe mọi sự kiện DOM (click, scroll, input...).
+   - Lưu trữ các sự kiện đó vào một mảng tạm `window.__autoBrowserEvents` bên trong môi trường web của Root.
+   - Python Backend liên tục "gặt" (poll) dữ liệu từ mảng này (mỗi 0.3s) thông qua việc đánh giá mã JS `FLUSH_EVENTS_JS`.
+   - Với mỗi sự kiện gặt được, Python phân tách và gọi lại API của Playwright để tái hiện lại hành vi vật lý đó
+     (vd: `page.click()`, `page.fill()`) lên toàn bộ các trình duyệt Followers cùng một lúc.
 """
 
 import asyncio
@@ -178,11 +186,16 @@ class SyncEngine:
         if not root_instance or not root_instance.active_page:
             raise ValueError("Root browser has no active page")
 
+        # Tiêm kịch bản bắt sự kiện (Gián điệp JS) vào trình duyệt Root
         root_page = root_instance.active_page
-
         await root_page.evaluate(CAPTURE_EVENTS_JS)
 
-        # Also inject on navigation
+        # Lắng nghe sự kiện "load" (Khi Root điều hướng sang trang khác hoặc F5):
+        # Lúc này trang bị reset nên Gián điệp JS cũ sẽ bị xóa sổ theo.
+        # Ta cần đăng ký một hàm callback (lambda) để tiêm lại JS ngay khi trang mới tải xong.
+        # Lưu ý: Hàm `on` của Playwright nhận một hàm đồng bộ bình thường.
+        # Dùng `asyncio.ensure_future()` để biến việc tiêm lại (hàm bất đồng bộ `_reinject_capture`)
+        # thành một công việc chạy ở chế độ nền (Background task) nhằm không làm chặn (blocking) tiến trình chính.
         root_page.on("load", lambda: asyncio.ensure_future(self._reinject_capture(root_page)))
 
         # Start the sync loop
@@ -209,20 +222,27 @@ class SyncEngine:
 
                 root_page = root_instance.active_page
 
-                # Check for URL changes (navigation)
+                # 1. ĐỒNG BỘ ĐIỀU HƯỚNG MẠNG (URL Syncing)
+                # Kỹ thuật: So sánh URL hiện tại của Root với chu kỳ trước đó.
+                # Nếu URL lọt vào trang mới, bắt tất cả Client (Followers) chuyển hướng .goto(url) đi theo ngay lập tức.
                 current_url = root_page.url
                 if last_url and current_url != last_url:
                     await self._replay_navigation(current_url)
                 last_url = current_url
 
-                # Flush captured events
+                # 2. XẢ THÙNG CHỨA SỰ KIỆN TỪ ROOT (Flushing Events)
+                # Ở đây chúng ta đâm mã FLUSH_EVENTS_JS vào Root.
+                # Đoạn mã này sẽ lấy sạch dữ liệu từ mảng `window.__autoBrowserEvents` và đổ ra dạng chuỗi JSON,
+                # đồng thời dọn dẹp mảng đó trên trình duyệt để lấy chỗ lưu thao tác tiếp theo.
                 try:
                     events_json = await root_page.evaluate(FLUSH_EVENTS_JS)
                     events = json.loads(events_json) if events_json else []
                 except Exception:
                     events = []
 
-                # Replay events to followers or record
+                # 3. TÁI LẬP HÀNH ĐỘNG LÊN TOÀN BỘ CLIENT (Replay Events Dispatcher)
+                # Với từng sự kiện lấy được (click, input...), ném nó qua hàm _replay_event
+                # để tái hiện lại nó trên tất cả các trình duyệt con.
                 for event in events:
                     if self.record_mode:
                         self.recorded_events.append(event)
@@ -253,17 +273,21 @@ class SyncEngine:
             pass
 
     async def _replay_event(self, event: dict):
-        """Replay a single event on all followers."""
+        """Phân phối 1 hành động của người dùng (từ Root) lên mọi Follower (Clients)."""
         event_type = event.get("type")
         tasks = []
 
+        # Lặp qua tất cả Follower hiện tại và thu thập các Task tái lập hành động.
         for fname in list(self.followers):
             inst = self.launcher.get_instance(fname)
             if not inst or not inst.active_page:
                 continue
             page = inst.active_page
+            # Gắn lệnh bắt trang Client tái lập chuỗi event vào trong một Task.
             tasks.append(self._replay_single(page, event))
 
+        # Sử dụng asyncio.gather để phóng đồng loạt các tác vụ này (chạy song song).
+        # Tức là nếu có 10 clients, hành động Click sẽ diễn ra gần như cùng 1 lúc trên cả 10 tabs thay vì đợi tuần tự.
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 

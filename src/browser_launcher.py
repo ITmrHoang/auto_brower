@@ -63,8 +63,8 @@ class BrowserLauncher:
 
     async def launch(self, profile_name: str, profile_config: dict,
                      headless: bool = False,
-                     window_size: tuple = None,
-                     window_position: tuple = None) -> BrowserInstance:
+                     window_size: Optional[tuple] = None,
+                     window_position: Optional[tuple] = None) -> BrowserInstance:
         """Launch a browser with the given profile configuration."""
         if profile_name in self.instances:
             raise ValueError(f"Browser for profile '{profile_name}' is already running")
@@ -82,11 +82,28 @@ class BrowserLauncher:
             "--disable-renderer-backgrounding",
         ]
 
-        # Window size
-        ws = window_size or (
-            self.config.get("default_window_size", {}).get("width", 800),
-            self.config.get("default_window_size", {}).get("height", 600)
-        )
+        # Lấy kích thước cửa sổ mặc định từ config (Xử lý an toàn nếu config hoặc giá trị trả về là None)
+        ws_config = {}
+        if self.config:
+            ws_config = self.config.get("default_window_size", {})
+            if not isinstance(ws_config, dict):
+                ws_config = {}
+
+        base_w = ws_config.get("width", 800)
+        base_h = ws_config.get("height", 600)
+        
+        # Tùy chọn Random Viewport chống bị gom cụm hành vi (Cluster Bot)
+        should_randomize = self.config.get("randomize_viewport", True) if self.config else True
+        if should_randomize and not window_size:
+            import random
+            # Width lệch cực nhẹ (0-15px) để giữ nguyên cấu trúc Responsive CSS
+            # Height lệch mạnh (0-150px) để giấu sự đồng bộ khung máy ảo
+            rand_w = base_w + random.randint(0, 15)
+            rand_h = base_h + random.randint(0, 150)
+            ws = (rand_w, rand_h)
+        else:
+            ws = window_size or (base_w, base_h)
+            
         args.append(f"--window-size={ws[0]},{ws[1]}")
 
         # Window position
@@ -94,7 +111,8 @@ class BrowserLauncher:
             args.append(f"--window-position={window_position[0]},{window_position[1]}")
 
         # Proxy
-        proxy_config = None
+        from playwright.async_api import ProxySettings
+        proxy_config: Optional[ProxySettings] = None
         proxy_url = profile_config.get("proxy")
         if proxy_url:
             proxy_config = {"server": proxy_url}
@@ -120,6 +138,10 @@ class BrowserLauncher:
 
         user_agent = profile_config.get("user_agent") or fingerprint.get("user_agent")
 
+        # Get locale from LANGUAGES array (e.g ['vi-VN', 'vi', 'en-US', 'en'] -> 'vi-VN')
+        locale = fingerprint.get("languages", ["en-US"])[0]
+        timezone_id = fingerprint.get("timezone", "America/New_York")
+
         # Launch persistent context
         context = await pw.chromium.launch_persistent_context(
             user_data_dir=user_data_dir,
@@ -131,6 +153,13 @@ class BrowserLauncher:
             viewport={"width": ws[0], "height": ws[1]},
             ignore_default_args=["--enable-automation"],
             color_scheme="dark",
+            timezone_id=timezone_id,
+            locale=locale,
+            permissions=["geolocation"],
+            geolocation={
+                "longitude": fingerprint.get("longitude", -74.0060), 
+                "latitude": fingerprint.get("latitude", 40.7128)
+            }
         )
 
         # Inject stealth scripts on every new page

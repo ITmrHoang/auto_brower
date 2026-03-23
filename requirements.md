@@ -22,3 +22,15 @@
   2. **Script Runner:** Chạy script từ sidebar với cấu hình loop (vòng lặp) và delay (thời gian chờ giữa các lần lặp).
   3. **Script Editor:** Tạo script JS bằng tay, cài đặt loop/delay, lưu file ra thư mục `scripts/`.
 - **Lý do:** Các API backend đã sẵn sàng nhưng GUI chưa expose các tính năng này cho người dùng.
+
+## [2026-03-23] Version 1.1.1 - Fix Type Hint Error in browser_launcher.py
+- **Yêu cầu:** Sửa lỗi type hint: `Expression of type "None" cannot be assigned to parameter of type "tuple[Unknown, ...]"`.
+- **Lý do:** Đối số `window_size` và `window_position` được gán mặc định là `None` nhưng được đánh dấu kiểu là `tuple` (không được phép trong các công cụ phân tích kiểu nghiêm ngặt).
+
+## [2026-03-23] Version 1.1.2 - Fix NoneType access in browser_launcher.py
+- **Yêu cầu:** Sửa lỗi `"get" is not a known attribute of "None"`.
+- **Lý do:** Kết quả của `config.get(...)` có thể là `None` nếu giá trị trong JSON là `null`, dẫn đến lỗi khi gọi tiếp `.get()` trên kết quả đó. Cần code an toàn hơn hoặc bổ sung type hints.
+
+## [2026-03-23] Version 1.1.3 - Fix Type Hint in gui_app.py
+- **Yêu cầu:** Sửa lỗi: `Type "None" is not assignable to declared type "AppConfig"`.
+- **Lý do:** Các biến global (`config`, `profile_mgr`, `launcher`, `sync_engine`) được khởi tạo là `None` nhưng type hint lại là non-nullable. Đổi sang `Optional` và bổ sung safety checks.

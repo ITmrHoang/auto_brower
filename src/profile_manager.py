@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, List
 
+from .fingerprint import generate_fingerprint
 from rich.console import Console
 from rich.table import Table
 
@@ -43,6 +44,16 @@ class ProfileManager:
 
         profile_dir.mkdir(parents=True, exist_ok=True)
 
+        # Xây dựng URL Proxy để truyền cho Fingerprint API
+        proxy_url = proxy
+        if proxy and proxy_username and proxy_password:
+            # Format: http://user:pass@ip:port
+            if "://" in proxy:
+                schema, rest = proxy.split("://", 1)
+                proxy_url = f"{schema}://{proxy_username}:{proxy_password}@{rest}"
+            else:
+                proxy_url = f"http://{proxy_username}:{proxy_password}@{proxy}"
+
         profile = {
             "id": self._generate_id(),
             "name": name,
@@ -51,7 +62,7 @@ class ProfileManager:
             "proxy_password": proxy_password,
             "user_agent": user_agent,
             "notes": notes,
-            "fingerprint": None,  # Will be generated on first launch
+            "fingerprint": generate_fingerprint(seed=name, proxy=proxy_url),  # Generated once immediately and saved permanently
             "created_at": datetime.now().isoformat(),
             "last_used": None,
             "extensions": [],
@@ -68,13 +79,50 @@ class ProfileManager:
         if not config_path.exists():
             return None
         with open(config_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            profile = json.load(f)
+            
+        # Tự động vá lỗi (Self-heal) cho các profile cũ chưa có fingerprint
+        if not profile.get("fingerprint"):
+            # Xây dựng proxy URL nếu có để gen fingerprint chuẩn Location
+            proxy_url = profile.get("proxy")
+            user = profile.get("proxy_username")
+            pw = profile.get("proxy_password")
+            if proxy_url and user and pw:
+                if "://" in proxy_url:
+                    schema, rest = proxy_url.split("://", 1)
+                    proxy_url = f"{schema}://{user}:{pw}@{rest}"
+                else:
+                    proxy_url = f"http://{user}:{pw}@{proxy_url}"
+                    
+            profile["fingerprint"] = generate_fingerprint(seed=name, proxy=proxy_url)
+            with open(config_path, "w", encoding="utf-8") as f2:
+                json.dump(profile, f2, indent=2, ensure_ascii=False)
+                
+        return profile
 
     def update(self, name: str, **kwargs):
         """Update profile configuration."""
         profile = self.get(name)
         if not profile:
             raise ValueError(f"Profile '{name}' not found")
+            
+        # Nếu có hành động liên quan tới cập nhật / xoá Proxy, ta sẽ tái tạo cấu trúc IP-Geo của Fingerprint
+        proxy_keys = ["proxy", "proxy_username", "proxy_password"]
+        if any(k in kwargs for k in proxy_keys):
+            p_url = kwargs.get("proxy", profile.get("proxy"))
+            user = kwargs.get("proxy_username", profile.get("proxy_username"))
+            pw = kwargs.get("proxy_password", profile.get("proxy_password"))
+            
+            req_proxy = p_url
+            if p_url and user and pw:
+                if "://" in p_url:
+                    schema, rest = p_url.split("://", 1)
+                    req_proxy = f"{schema}://{user}:{pw}@{rest}"
+                else:
+                    req_proxy = f"http://{user}:{pw}@{p_url}"
+                    
+            profile["fingerprint"] = generate_fingerprint(seed=name, proxy=req_proxy)
+            
         profile.update(kwargs)
         with open(self._profile_config_path(name), "w", encoding="utf-8") as f:
             json.dump(profile, f, indent=2, ensure_ascii=False)

@@ -1,3 +1,7 @@
+---
+trigger: always_on
+---
+
 # ROLE: Senior Full-Stack Autonomous Engineer
 
 # LANGUAGE PROTOCOL (STRICT)
@@ -38,16 +42,6 @@ You must NOT just write code; you must **RUN** it to verify:
     * If no connection: Generate the exact SQL migration script and simulate the run logic.
 * **Self-Correction:** If the command fails, analyze the error, fix the code, and **re-run** until it passes.
 
-### Step 3: Reporting (The chat and "Result.md" File by vietnamese)
-Once the task is verified successfully:
-1.  **Create/Overwrite** a file named `result.md` in the root directory.
-2.  **Write ONLY the final report into this file (Markdown format):**
-    * `# Summary`: A concise list of what was changed.
-    * `# Execution`:
-        * The exact commands executed to verify (e.g., `npm run build`).
-        * SQL scripts used (if any).
-        * Any manual steps the user needs to take (e.g., "Restart the generic-service").
-    * `# Status`: Confirmation that the automated verification passed.
 
 # RULES & CONSTRAINTS
 1.  **Self-Correction:** If a build or script fails during Step 2, you must analyze the error, fix the code, and **re-run** the verification before reporting. Do not ask for help unless you are stuck in a loop.

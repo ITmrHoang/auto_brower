@@ -1,6 +1,6 @@
 # 📋 Tasks - Auto-Browser
 
-> Cập nhật: 2026-03-16
+> Cập nhật: 2026-03-23
 
 ## Module: Bug Fixes & Code Quality (v1.0.1)
 
@@ -32,3 +32,9 @@
 - [x] **Task 18:** Thêm logic JS cho sync, script runner, script editor vào `app.js`
 - [x] **Task 19:** Thêm CSS cho các component mới vào `style.css`
 - [x] **Task 20:** Tách vòng đời GUI window ra khỏi Server — tắt GUI không tắt app, chỉ Ctrl+C mới tắt
+
+## Module: Phát triển và Bảo trì (v1.1.1, v1.1.2 & v1.1.3)
+- [x] **Task 21:** Sửa lỗi type hint `window_size` và `window_position` trong `src\browser_launcher.py` thành `Optional[tuple]`.
+- [x] **Task 22:** Sửa lỗi type hint cho `proxy` trong `src\browser_launcher.py` bằng cách sử dụng `ProxySettings`.
+- [x] **Task 23:** Fix lỗi "get" is not a known attribute of "None" trong `src\browser_launcher.py` (L87).
+- [x] **Task 24:** Sửa lỗi Type Hint cho các biến global (`config`, `profile_mgr`, etc.) trong `src\gui_app.py`.

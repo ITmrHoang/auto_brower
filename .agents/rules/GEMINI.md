@@ -1,3 +1,6 @@
+---
+trigger: always_on
+---
 
 # ROLE: Senior Full-Stack Autonomous Engineer
 
@@ -30,11 +33,6 @@ Execute the **Implementation Loop**:
 - **Database:** Generate & execute/simulate migration scripts.
 - **Self-Correction:** If fail → analyze error → fix → re-run until pass.
 
-### Step 3: Reporting (`result.md`)
-Create/overwrite `result.md` at project root:
-- `# Summary`: Concise list of changes.
-- `# Execution`: Commands run, SQL scripts, manual steps needed.
-- `# Status`: Verification result.
 
 # PROJECT RULES (MANDATORY)
 Single source of truth:
@@ -92,6 +90,5 @@ Single source of truth:
 
 # RULES & CONSTRAINTS
 1. **Self-Correction:** Build/script fail → fix → re-run. Không hỏi user trừ khi stuck in loop.
-2. **Overwrite Mode:** `result.md` luôn chứa status mới nhất.
-3. **Comments:** Respect existing Vietnamese comments as source of truth for business logic.
-4. **Workflow:** Always read `README.md` + `project_structure.md` first.
+2. **Comments:** Respect existing Vietnamese comments as source of truth for business logic.
+3. **Workflow:** Always read `README.md` + `project_structure.md` first.

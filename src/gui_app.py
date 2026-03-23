@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import List, Optional, Dict
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Body
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Body, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -21,10 +22,10 @@ from .sync_engine import SyncEngine
 
 
 # Global instances (will be initialized on startup)
-config: AppConfig = None
-profile_mgr: ProfileManager = None
-launcher: BrowserLauncher = None
-sync_engine: SyncEngine = None
+config: Optional[AppConfig] = None
+profile_mgr: Optional[ProfileManager] = None
+launcher: Optional[BrowserLauncher] = None
+sync_engine: Optional[SyncEngine] = None
 
 
 @asynccontextmanager
@@ -42,6 +43,13 @@ async def lifespan(app):
 
 
 app = FastAPI(title="Auto-Browser GUI API", lifespan=lifespan)
+
+@app.exception_handler(AssertionError)
+async def assertion_exception_handler(request: Request, exc: AssertionError):
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Hệ thống trình duyệt chưa khởi động xong, vui lòng thử lại sau giây lát!"},
+    )
 
 # Setup CORS
 app.add_middleware(
@@ -108,6 +116,8 @@ class RecordStopReq(BaseModel):
 
 @app.get("/api/profiles")
 def get_profiles():
+    assert profile_mgr is not None
+    assert launcher is not None
     profiles = profile_mgr.list_profiles()
     # Add status info
     running = launcher.list_running() if launcher else []
@@ -118,6 +128,8 @@ def get_profiles():
 
 @app.post("/api/profiles")
 def create_profile(req: ProfileCreateReq):
+    assert profile_mgr is not None
+    assert req.notes is not None
     try:
         p = profile_mgr.create(
             req.name, proxy=req.proxy, 
@@ -132,6 +144,7 @@ def create_profile(req: ProfileCreateReq):
 
 @app.put("/api/profiles/{name}")
 def update_profile(name: str, req: ProfileUpdateReq):
+    assert profile_mgr is not None
     try:
         updates = {k: v for k, v in req.model_dump().items() if v is not None}
         if updates:
@@ -144,6 +157,7 @@ def update_profile(name: str, req: ProfileUpdateReq):
 
 @app.delete("/api/profiles/{name}")
 async def delete_profile(name: str):
+    assert profile_mgr is not None
     try:
         # Close browser if running before deleting profile
         if launcher and name in launcher.list_running():
@@ -157,6 +171,8 @@ async def delete_profile(name: str):
 
 @app.post("/api/browser/launch")
 async def launch_browser(req: LaunchReq, background_tasks: BackgroundTasks):
+    assert profile_mgr is not None
+    assert launcher is not None
     p = profile_mgr.get(req.profile_name)
     if not p:
         raise HTTPException(status_code=404, detail="Profile not found")
@@ -166,6 +182,7 @@ async def launch_browser(req: LaunchReq, background_tasks: BackgroundTasks):
 
     # Add to background to resolve API call quickly
     async def _do_launch():
+        assert launcher is not None
         try:
             await launcher.launch(req.profile_name, p, headless=req.headless)
         except Exception as e:
@@ -177,6 +194,7 @@ async def launch_browser(req: LaunchReq, background_tasks: BackgroundTasks):
 
 @app.post("/api/browser/close")
 async def close_browser(req: dict = Body(...)):
+    assert launcher is not None
     name = req.get("profile_name")
     if not name:
         raise HTTPException(status_code=400, detail="profile_name required")
@@ -205,6 +223,7 @@ def get_browser_status():
 
 @app.get("/api/scripts")
 def get_scripts():
+    assert config is not None
     scripts = []
     if config.scripts_dir.exists():
         for item in config.scripts_dir.iterdir():
@@ -218,6 +237,8 @@ def get_scripts():
 
 @app.post("/api/scripts/run")
 async def run_script(req: ScriptRunReq, background_tasks: BackgroundTasks):
+    assert config is not None
+    assert launcher is not None
     script_path = config.scripts_dir / req.script_name
     if not script_path.exists():
         raise HTTPException(status_code=404, detail="Script not found")
@@ -227,6 +248,7 @@ async def run_script(req: ScriptRunReq, background_tasks: BackgroundTasks):
     delay_ms = max(0, req.delay_ms)
     
     async def _run():
+        assert launcher is not None
         for iteration in range(loop_count):
             for name in req.target_profiles:
                 inst = launcher.get_instance(name)
@@ -244,6 +266,7 @@ async def run_script(req: ScriptRunReq, background_tasks: BackgroundTasks):
 
 @app.post("/api/scripts/save")
 def save_script(req: ScriptSaveReq):
+    assert config is not None
     """Save a manually created script with optional loop/delay wrapper."""
     filename = req.name
     if not filename.endswith(".js"):
@@ -273,6 +296,7 @@ def save_script(req: ScriptSaveReq):
 # Sync & Record routes
 @app.post("/api/sync/start")
 async def start_sync(req: SyncStartReq):
+    assert sync_engine is not None
     try:
         if sync_engine.is_running:
             await sync_engine.stop()
@@ -291,12 +315,14 @@ async def start_sync(req: SyncStartReq):
 
 @app.post("/api/sync/stop")
 async def stop_sync():
+    assert sync_engine is not None
     await sync_engine.stop()
     return {"status": "success"}
 
 
 @app.post("/api/record/start")
 async def start_record(req: RecordStartReq):
+    assert sync_engine is not None
     try:
         if sync_engine.is_running:
             await sync_engine.stop()
@@ -312,6 +338,8 @@ async def start_record(req: RecordStartReq):
 
 @app.post("/api/record/stop")
 async def stop_record(req: RecordStopReq):
+    assert sync_engine is not None
+    assert config is not None
     if not sync_engine.is_running or not getattr(sync_engine, 'record_mode', False):
         raise HTTPException(status_code=400, detail="Not recording")
         
