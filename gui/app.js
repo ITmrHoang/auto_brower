@@ -109,6 +109,7 @@ function updateMainView() {
 
     selectedProfileName.innerText = currentProfile.name;
     document.getElementById("lbl-proxy").innerText = currentProfile.proxy || "System Interface";
+    document.getElementById("lbl-browser-name").innerText = currentProfile.browser_name || "Mặc định (Auto-detect)";
 
     const isRunning = currentProfile.status === "running";
 
@@ -316,7 +317,9 @@ document.getElementById("btn-submit-run-script").onclick = async () => {
 // ─── Script Editor Modal ─────────────────────────────────────
 document.getElementById("btn-new-script").onclick = () => {
     document.getElementById("editor-script-name").value = "";
-    document.getElementById("editor-code").value = "";
+    if (window.monacoEditor) {
+        window.monacoEditor.setValue("// Viết code JS ở đây\n// Ví dụ: document.title = 'Hello World';\n");
+    }
     document.getElementById("editor-loop").value = 1;
     document.getElementById("editor-delay").value = 0;
     document.getElementById("modal-script-editor").classList.add("active");
@@ -324,7 +327,7 @@ document.getElementById("btn-new-script").onclick = () => {
 
 document.getElementById("btn-save-script").onclick = async () => {
     const name = document.getElementById("editor-script-name").value;
-    const code = document.getElementById("editor-code").value;
+    const code = window.monacoEditor ? window.monacoEditor.getValue() : "";
     const loop = parseInt(document.getElementById("editor-loop").value) || 1;
     const delay = parseInt(document.getElementById("editor-delay").value) || 0;
 
@@ -348,9 +351,50 @@ document.getElementById("btn-save-script").onclick = async () => {
     fetchScripts();
 };
 
-// ─── Profile Modal ───────────────────────────────────────────
+// ─── Profile Modal & Browser Scan ────────────────────────────
+
+// Hàm dùng chung: Quét và đổ danh sách trình duyệt vào 1 dropdown bất kỳ
+async function scanBrowsersToSelect(selectId, currentBrowserName) {
+    const select = document.getElementById(selectId);
+    const btn = event ? event.target.closest('button') : null;
+    if (btn) {
+        btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang quét...`;
+        btn.disabled = true;
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/browsers`);
+        const data = await res.json();
+
+        select.innerHTML = `<option value="">-- Mặc định (theo cài đặt chung) --</option>`;
+        data.browsers.forEach(b => {
+            const opt = document.createElement("option");
+            opt.value = JSON.stringify({ path: b.path, name: b.name });
+            opt.textContent = b.name;
+            if (currentBrowserName && b.name === currentBrowserName) opt.selected = true;
+            select.appendChild(opt);
+        });
+    } catch (e) { console.error("Scan browsers failed", e); }
+
+    if (btn) {
+        btn.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i> Quét`;
+        btn.disabled = false;
+    }
+}
+
+document.getElementById("btn-scan-browser-create").onclick = (e) => {
+    scanBrowsersToSelect("inp-browser", null);
+};
+
+document.getElementById("btn-scan-browser-edit").onclick = (e) => {
+    const currentName = currentProfile ? (currentProfile.browser_name || "") : "";
+    scanBrowsersToSelect("edit-browser", currentName);
+};
+
 document.getElementById("btn-add-profile").onclick = () => {
     document.getElementById("modal-add-profile").classList.add("active");
+    // Tự động quét browser khi mở modal
+    scanBrowsersToSelect("inp-browser", null);
 };
 
 document.getElementById("btn-submit-profile").onclick = async () => {
@@ -358,12 +402,29 @@ document.getElementById("btn-submit-profile").onclick = async () => {
     const proxy = document.getElementById("inp-proxy").value;
     const puser = document.getElementById("inp-proxy-user").value;
     const ppass = document.getElementById("inp-proxy-pass").value;
+    const browserVal = document.getElementById("inp-browser").value;
 
     if (!name) return alert("Name required");
 
+    // Parse browser selection
+    let browserPath = "";
+    let browserName = "";
+    if (browserVal) {
+        const parsed = JSON.parse(browserVal);
+        browserPath = parsed.path;
+        browserName = parsed.name;
+    }
+
     await fetch(`${API_BASE}/profiles`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, proxy: proxy || null, proxy_username: puser || null, proxy_password: ppass || null })
+        body: JSON.stringify({
+            name,
+            proxy: proxy || null,
+            proxy_username: puser || null,
+            proxy_password: ppass || null,
+            browser_path: browserPath,
+            browser_name: browserName
+        })
     });
     document.getElementById("modal-add-profile").classList.remove("active");
     fetchProfiles();
@@ -375,6 +436,61 @@ document.getElementById("btn-delete").onclick = async () => {
         currentProfile = null;
         fetchProfiles();
     }
+};
+
+// ─── Edit Profile Modal ──────────────────────────────────────
+document.getElementById("btn-edit").onclick = () => {
+    if (!currentProfile) return;
+    document.getElementById("edit-proxy").value = currentProfile.proxy || "";
+    document.getElementById("edit-proxy-user").value = currentProfile.proxy_username || "";
+    document.getElementById("edit-proxy-pass").value = currentProfile.proxy_password || "";
+    document.getElementById("edit-user-agent").value = currentProfile.user_agent || "";
+    document.getElementById("edit-notes").value = currentProfile.notes || "";
+
+    // Hiển thị trình duyệt hiện tại của profile
+    const bName = currentProfile.browser_name || "";
+    document.getElementById("edit-browser-current").innerText = bName ? `Hiện tại: ${bName}` : "";
+    scanBrowsersToSelect("edit-browser", bName);
+
+    document.getElementById("modal-edit-profile").classList.add("active");
+};
+
+document.getElementById("btn-save-edit-profile").onclick = async () => {
+    const proxy = document.getElementById("edit-proxy").value;
+    const puser = document.getElementById("edit-proxy-user").value;
+    const ppass = document.getElementById("edit-proxy-pass").value;
+    const ua = document.getElementById("edit-user-agent").value;
+    const notes = document.getElementById("edit-notes").value;
+    const browserVal = document.getElementById("edit-browser").value;
+
+    // Parse browser selection
+    let browserPath = currentProfile.browser_path || "";
+    let browserName = currentProfile.browser_name || "";
+    if (browserVal) {
+        const parsed = JSON.parse(browserVal);
+        browserPath = parsed.path;
+        browserName = parsed.name;
+    }
+
+    const btn = document.getElementById("btn-save-edit-profile");
+    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Saving...`;
+    
+    await fetch(`${API_BASE}/profiles/${currentProfile.name}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+            proxy: proxy || "", 
+            proxy_username: puser || "", 
+            proxy_password: ppass || "",
+            user_agent: ua || "",
+            notes: notes || "",
+            browser_path: browserPath,
+            browser_name: browserName
+        })
+    });
+    
+    document.getElementById("modal-edit-profile").classList.remove("active");
+    btn.innerHTML = `<i class="fa-solid fa-save"></i> LƯU CẤU HÌNH`;
+    fetchProfiles();
 };
 
 // ─── Close any modal ─────────────────────────────────────────
@@ -396,3 +512,28 @@ fetchProfiles();
 fetchScripts();
 setInterval(fetchProfiles, 3000);
 setInterval(fetchSyncStatus, 2000);
+
+// ─── Initialize Monaco Editor ────────────────────────────────
+window.monacoEditor = null;
+window.MonacoEnvironment = {
+    getWorkerUrl: function(workerId, label) {
+        return `data:text/javascript;charset=utf-8,${encodeURIComponent(`
+            self.MonacoEnvironment = {
+                baseUrl: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.46.0/min/'
+            };
+            importScripts('https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.46.0/min/vs/base/worker/workerMain.js');`
+        )}`;
+    }
+};
+require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.46.0/min/vs' } });
+require(['vs/editor/editor.main'], function () {
+    window.monacoEditor = monaco.editor.create(document.getElementById('editor-container'), {
+        value: "// Viết code JS ở đây\n// Khuyên dùng: document.querySelector('.btn').click();\n",
+        language: 'javascript',
+        theme: 'vs-dark',
+        automaticLayout: true,
+        minimap: { enabled: false },
+        fontSize: 14,
+        fontFamily: "'JetBrains Mono', 'Consolas', monospace"
+    });
+});

@@ -10,14 +10,15 @@ import requests
 from typing import Optional
 
 
-# Common screen resolutions
-SCREEN_RESOLUTIONS = [
+# Độ phân giải Màn hình PC/Laptop phổ thông
+PC_SCREENS = [
     (1920, 1080), (1366, 768), (1536, 864), (1440, 900),
-    (1280, 720), (1600, 900), (2560, 1440), (1280, 800),
-    (1024, 768), (1680, 1050),
+    (1600, 900), (2560, 1440), (1280, 800), (1680, 1050),
+    (1920, 1200), (2560, 1600),
 ]
+SCREEN_RESOLUTIONS = PC_SCREENS
 
-# Common timezones
+# Danh sách Timezone dự phòng
 TIMEZONES = [
     "America/New_York", "America/Chicago", "America/Denver",
     "America/Los_Angeles", "Europe/London", "Europe/Paris",
@@ -25,87 +26,43 @@ TIMEZONES = [
     "Australia/Sydney", "Asia/Ho_Chi_Minh",
 ]
 
-# Common platforms
-PLATFORMS = ["Win32", "Win64", "MacIntel", "Linux x86_64"]
-
-# Common WebGL renderers (Mở rộng để đa dạng hóa)
-WEBGL_RENDERERS = [
-    # NVIDIA GeForce Series
-    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce GTX 1050 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce GTX 1050 Ti Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce GTX 1060 3GB Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce GTX 1060 6GB Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce GTX 1070 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce GTX 1080 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce GTX 1650 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce GTX 1660 SUPER Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce RTX 2060 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce RTX 2070 SUPER Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce RTX 3050 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Laptop GPU Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce RTX 3070 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce RTX 3080 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce RTX 4060 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce RTX 4070 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    
-    # AMD Radeon Series
-    ("Google Inc. (AMD)", "ANGLE (AMD, AMD Radeon RX 570 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (AMD)", "ANGLE (AMD, AMD Radeon RX 580 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (AMD)", "ANGLE (AMD, AMD Radeon(TM) Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (AMD)", "ANGLE (AMD, AMD Radeon RX 6600 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (AMD)", "ANGLE (AMD, AMD Radeon RX 6700 XT Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (AMD)", "ANGLE (AMD, AMD Radeon RX 7900 XTX Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (AMD)", "ANGLE (AMD, AMD Ryzen 5 5600G with Radeon Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    
-    # Intel Graphics
-    ("Google Inc. (Intel)", "ANGLE (Intel, Intel(R) HD Graphics 520 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (Intel)", "ANGLE (Intel, Intel(R) HD Graphics 620 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (Intel)", "ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (Intel)", "ANGLE (Intel, Intel(R) UHD Graphics 630 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (Intel)", "ANGLE (Intel, Intel(R) UHD Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Google Inc. (Intel)", "ANGLE (Intel, Intel(R) Iris(R) Xe Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    
-    # Apple M-Series (macOS specific renderers)
-    ("Apple", "Apple M1"),
-    ("Apple", "Apple M1 Pro"),
-    ("Apple", "Apple M1 Max"),
-    ("Apple", "Apple M2"),
-    ("Apple", "Apple M2 Pro"),
-    ("Apple", "Apple M3"),
-]
-
-# Common user agents (Mở rộng cho nhiều loại trình duyệt phổ biến)
-USER_AGENTS = [
-    # Windows Chrome (115 - 124)
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+# ===== USER AGENTS PHÂN LOẠI THEO NỀN TẢNG =====
+# Windows Chrome & Edge
+WIN_USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    
-    # Windows Edge
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Edg/122.0.0.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0",
+]
 
-    # macOS Chrome
+# macOS Chrome & Safari
+MAC_USER_AGENTS = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; ARM Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    
-    # Linux Chrome
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+]
+
+# Linux Chrome
+LINUX_USER_AGENTS = [
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+]
+# Gộp toàn bộ UA
+USER_AGENTS = WIN_USER_AGENTS + MAC_USER_AGENTS + LINUX_USER_AGENTS
+
+# Bộ Ánh xạ Hệ Sinh Thái Đồng bộ (Platform -> Screen)
+DEVICE_ECOSYSTEMS = [
+    {"weight": 60, "ua_list": WIN_USER_AGENTS, "platforms": ["Win32"], "screens": PC_SCREENS},
+    {"weight": 35, "ua_list": MAC_USER_AGENTS, "platforms": ["MacIntel"], "screens": PC_SCREENS},
+    {"weight": 5, "ua_list": LINUX_USER_AGENTS, "platforms": ["Linux x86_64"], "screens": PC_SCREENS},
 ]
 
 # Languages (Mở rộng thêm nhiều khu vực ngôn ngữ)
@@ -136,7 +93,7 @@ LANGUAGE_SETS = [
 ]
 
 
-def generate_fingerprint(seed: Optional[str] = None, proxy: Optional[str] = None) -> dict:
+def generate_fingerprint(seed: Optional[str] = None, proxy: Optional[str] = None, custom_user_agent: Optional[str] = None) -> dict:
     """
     Generate a random but deterministic fingerprint.
     If seed is provided, the same seed always produces the same fingerprint.
@@ -147,9 +104,6 @@ def generate_fingerprint(seed: Optional[str] = None, proxy: Optional[str] = None
     else:
         rng = random.Random()
 
-    screen = rng.choice(SCREEN_RESOLUTIONS)
-    webgl = rng.choice(WEBGL_RENDERERS)
-    
     # Mặc định lấy ngẫu nhiên nếu dò timezone thất bại
     timezone = rng.choice(TIMEZONES)
     languages = rng.choice(LANGUAGE_SETS)
@@ -207,18 +161,34 @@ def generate_fingerprint(seed: Optional[str] = None, proxy: Optional[str] = None
     except Exception:
         pass # Fallback về random bình thường nếu mạng lỗi/proxy chết
 
+    # CHỌN HỆ SINH THÁI THIẾT BỊ ĐỒNG BỘ (UA + Platform + Screen cùng 1 nền tảng PC)
+    if custom_user_agent:
+        # Nếu Người dùng chỉ định UserAgent cụ thể, dò tìm nền tảng theo nội dung của chuỗi đó
+        ua = custom_user_agent
+        if "Mac OS X" in ua:
+            match_platform = "MacIntel"
+        elif "Linux" in ua:
+            match_platform = "Linux x86_64"
+        else:
+            match_platform = "Win32"
+        screen = rng.choice(PC_SCREENS)
+    else:
+        # Random theo Tỉ trọng Thị Trường (Trọng số cho Windows cao nhất)
+        pc_ecosystems = DEVICE_ECOSYSTEMS
+        weights = [e["weight"] for e in pc_ecosystems]
+        eco = rng.choices(pc_ecosystems, weights=weights, k=1)[0]
+        ua = rng.choice(eco["ua_list"])
+        match_platform = rng.choice(eco["platforms"])
+        screen = rng.choice(eco["screens"])
+
     fingerprint = {
         "screen_width": screen[0],
         "screen_height": screen[1],
         "color_depth": rng.choice([24, 32]),
         "timezone": timezone,
-        "platform": rng.choice(PLATFORMS),
-        "user_agent": rng.choice(USER_AGENTS),
+        "platform": match_platform,
+        "user_agent": ua,
         "languages": languages,
-        "webgl_vendor": webgl[0],
-        "webgl_renderer": webgl[1],
-        "hardware_concurrency": rng.choice([4, 6, 8, 12, 16]),
-        "device_memory": rng.choice([4, 8, 16]),
         "do_not_track": rng.choice([None, "1"]),
         "max_touch_points": 0,
         "latitude": latitude,
@@ -250,20 +220,55 @@ def fingerprint_to_stealth_script(fp: dict) -> str:
     Object.defineProperty(navigator, 'languages', {{ get: () => fp.languages }});
     Object.defineProperty(navigator, 'language', {{ get: () => fp.languages[0] }});
 
+    // Override userAgentData (Client Hints)
+    let chPlatform = "Windows";
+    if (fp.platform.includes("Mac")) chPlatform = "macOS";
+    else if (fp.platform.includes("Linux")) chPlatform = "Linux";
+
+    Object.defineProperty(navigator, 'userAgentData', {{
+        get: () => ({{
+            brands: [
+                {{ brand: "Not_A Brand", version: "8" }},
+                {{ brand: "Chromium", version: "120" }},
+                {{ brand: "Google Chrome", version: "120" }}
+            ],
+            mobile: false,
+            platform: chPlatform,
+            getHighEntropyValues: async (hints) => {{
+                return {{
+                    architecture: "x86",
+                    bitness: "64",
+                    brands: [
+                        {{ brand: "Not_A Brand", version: "8" }},
+                        {{ brand: "Chromium", version: "120" }},
+                        {{ brand: "Google Chrome", version: "120" }}
+                    ],
+                    mobile: false,
+                    model: "",
+                    platform: chPlatform,
+                    platformVersion: "10.0.0",
+                    uaFullVersion: "120.0.6099.109"
+                }};
+            }}
+        }})
+    }});
+
     // Override screen
     Object.defineProperty(screen, 'width', {{ get: () => fp.screen_width }});
     Object.defineProperty(screen, 'height', {{ get: () => fp.screen_height }});
     Object.defineProperty(screen, 'availWidth', {{ get: () => fp.screen_width }});
-    Object.defineProperty(screen, 'availHeight', {{ get: () => fp.screen_height - 40 }});
+    // Taskbar offset randomization: Random lệch khung trình duyệt 40px - 70px
+    const randomOffset = 40 + Math.floor(Math.random() * 30);
+    Object.defineProperty(screen, 'availHeight', {{ get: () => fp.screen_height - randomOffset }});
+    
+    // colorDepth: Độ sâu màu của màn hình (thường là 24-bit hoặc 32-bit trên PC hiện đại).
+    // Anti-bot dùng nó để kiểm tra tính Logic: Nếu Màn hình to (Ví dụ 4K) mà Màu sắc lại thấp (Ví dụ 8-bit) thì chắc chắn là Bot.
     Object.defineProperty(screen, 'colorDepth', {{ get: () => fp.color_depth }});
-
-    // Override hardware info
-    Object.defineProperty(navigator, 'hardwareConcurrency', {{ get: () => fp.hardware_concurrency }});
-    Object.defineProperty(navigator, 'deviceMemory', {{ get: () => fp.device_memory }});
-    Object.defineProperty(navigator, 'maxTouchPoints', {{ get: () => fp.max_touch_points }});
-
-    // Override WebGL
-    const getParameterProxy = new Proxy(WebGLRenderingContext.prototype.getParameter, {{
+    
+    // Hardware info (Preserve original pass-through CPU/RAM/Touch)
+    
+    // Override WebGL comment
+    /*const getParameterProxy = new Proxy(WebGLRenderingContext.prototype.getParameter, {{
         apply: function(target, thisArg, args) {{
             if (args[0] === 37445) return fp.webgl_vendor;
             if (args[0] === 37446) return fp.webgl_renderer;
@@ -282,6 +287,7 @@ def fingerprint_to_stealth_script(fp: dict) -> str:
         }});
         WebGL2RenderingContext.prototype.getParameter = gp2;
     }}
+    */
 
     // Override doNotTrack
     Object.defineProperty(navigator, 'doNotTrack', {{ get: () => fp.do_not_track }});

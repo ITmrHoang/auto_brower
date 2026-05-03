@@ -139,22 +139,65 @@ class BrowserLauncher:
         user_agent = profile_config.get("user_agent") or fingerprint.get("user_agent")
 
         # Get locale from LANGUAGES array (e.g ['vi-VN', 'vi', 'en-US', 'en'] -> 'vi-VN')
-        locale = fingerprint.get("languages", ["en-US"])[0]
+        langs = fingerprint.get("languages", ["en-US"])
+        locale = langs[0]
         timezone_id = fingerprint.get("timezone", "America/New_York")
+
+        # Fake HTTP Header Client Hints & Language
+        if len(langs) > 1:
+            accept_lang = f"{langs[0]},{langs[1]};q=0.9,en-US;q=0.8,en;q=0.7"
+        else:
+            accept_lang = f"{langs[0]};q=0.9,en-US;q=0.8,en;q=0.7"
+            
+        platform = fingerprint.get("platform", "Win32")
+        safe_ua = user_agent or ""
+        is_mobile = "Mobile" in safe_ua or "Android" in safe_ua or "iPhone" in safe_ua
+        ch_platform = "Windows"
+        if "Mac" in platform: ch_platform = "macOS"
+        elif "Linux" in platform: ch_platform = "Linux"
+        elif "iPhone" in safe_ua or "iPad" in safe_ua: ch_platform = "iOS"
+        elif "Android" in safe_ua: ch_platform = "Android"
+
+        # Lấy Version thực tế của Browser từ User Agent để tránh lòi mạng sườn
+        import re
+        chrome_version = "120" # fallback
+        match = re.search(r"Chrome/(\d+)", safe_ua)
+        if match:
+            chrome_version = match.group(1)
+
+        extra_headers = {
+            "Accept-Language": accept_lang,
+            "Sec-CH-UA-Platform": f'"{ch_platform}"',
+            "Sec-CH-UA-Mobile": "?1" if is_mobile else "?0",
+            "Sec-CH-UA": f'"Not_A Brand";v="8", "Chromium";v="{chrome_version}", "Google Chrome";v="{chrome_version}"'
+        }
+
+        # Dùng viewport của cửa sổ
+        viewport: dict = {"width": int(ws[0]), "height": int(ws[1])}
+
+        # Xác định đường dẫn trình duyệt: Ưu tiên browser riêng của Profile → Global config → Playwright mặc định
+        profile_browser = profile_config.get("browser_path", "")
+        if profile_browser and Path(profile_browser).exists():
+            exe_path = profile_browser
+        elif self.config.browser_executable:
+            exe_path = str(self.config.browser_executable)
+        else:
+            exe_path = None
 
         # Launch persistent context
         context = await pw.chromium.launch_persistent_context(
             user_data_dir=user_data_dir,
-            executable_path=str(self.config.browser_executable) if self.config.browser_executable else None,
+            executable_path=exe_path,
             headless=headless,
             args=args,
             proxy=proxy_config,
             user_agent=user_agent,
-            viewport={"width": ws[0], "height": ws[1]},
+            viewport=viewport,  # type: ignore[arg-type]
             ignore_default_args=["--enable-automation"],
             color_scheme="dark",
             timezone_id=timezone_id,
             locale=locale,
+            extra_http_headers=extra_headers,
             permissions=["geolocation"],
             geolocation={
                 "longitude": fingerprint.get("longitude", -74.0060), 

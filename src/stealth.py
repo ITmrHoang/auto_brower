@@ -66,27 +66,28 @@ window.navigator.permissions.query = (parameters) => {
 };
 """)
 
-# 6. Canvas fingerprint protection (add subtle noise)
-STEALTH_SCRIPTS.append("""
-// Canvas fingerprint noise
-const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
-HTMLCanvasElement.prototype.toDataURL = function(type) {
-    if (type === 'image/png' || type === undefined) {
-        const context = this.getContext('2d');
-        if (context) {
-            const imageData = context.getImageData(0, 0, this.width, this.height);
-            for (let i = 0; i < imageData.data.length; i += 4) {
-                // Add subtle noise to RGB channels
-                imageData.data[i] = imageData.data[i] ^ (Math.random() > 0.5 ? 1 : 0);
-                imageData.data[i+1] = imageData.data[i+1] ^ (Math.random() > 0.5 ? 1 : 0);
-                imageData.data[i+2] = imageData.data[i+2] ^ (Math.random() > 0.5 ? 1 : 0);
-            }
-            context.putImageData(imageData, 0, 0);
-        }
-    }
-    return originalToDataURL.apply(this, arguments);
-};
-""")
+# 6. Canvas fingerprint protection (ĐÃ BỎ THEO YÊU CẦU: Datadome/Cloudflare bắt lỗi Toán học/Mismatch Pixel)
+# STEALTH_SCRIPTS.append("""
+# // Canvas fingerprint noise
+# const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+# HTMLCanvasElement.prototype.toDataURL = function(type) {
+#     if (type === 'image/png' || type === undefined) {
+#         const context = this.getContext('2d');
+#         if (context) {
+#             const imageData = context.getImageData(0, 0, this.width, this.height);
+#             for (let i = 0; i < imageData.data.length; i += 4) {
+#                 // Add subtle noise to RGB channels
+#                 imageData.data[i] = imageData.data[i] ^ (Math.random() > 0.5 ? 1 : 0);
+#                 imageData.data[i+1] = imageData.data[i+1] ^ (Math.random() > 0.5 ? 1 : 0);
+#                 imageData.data[i+2] = imageData.data[i+2] ^ (Math.random() > 0.5 ? 1 : 0);
+#             }
+#             context.putImageData(imageData, 0, 0);
+#         }
+#     }
+#     return originalToDataURL.apply(this, arguments);
+# };
+# """)
+# Không chèn Noise vào Canvas/WebGL để máy chủ pass qua bài Test Rendering tự nhiên với GPU thật.
 
 # 7. WebGL vendor/renderer spoofing
 # STEALTH_SCRIPTS.append("""
@@ -183,12 +184,8 @@ if (typeof RTCPeerConnection !== 'undefined') {
 }
 """)
 
-# 9. Mock navigator.hardwareConcurrency and deviceMemory
-STEALTH_SCRIPTS.append("""
-// Mock hardware info
-Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
-Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
-""")
+# 9. Mock navigator.hardwareConcurrency and deviceMemory (Bỏ qua - Đã Chuyển giao cho fingerprint_to_stealth_script)
+# Việc đè thông số lõi CPU và RAM sẽ được gán động ngẫu nhiên theo Fingerprint Seed thay vì Hardcode.
 
 # 10. Fix iframe contentWindow check
 STEALTH_SCRIPTS.append("""
@@ -203,20 +200,20 @@ try {
 } catch(e) {}
 """)
 
+# 11. AudioContext Fingerprint Spoofing (ĐÃ BỎ: Anticheat soi được sự bất hợp lý ở sóng âm Random)
 # 11. AudioContext Fingerprint Spoofing (Thêm nhiễu sóng âm thanh)
-STEALTH_SCRIPTS.append("""
-// AudioContext spoofing
-const originalGetChannelData = AudioBuffer.prototype.getChannelData;
-AudioBuffer.prototype.getChannelData = function(channel) {
-    const results = originalGetChannelData.apply(this, arguments);
-    for (let i = 0; i < results.length; i += 100) {
-        results[i] = results[i] + (Math.random() * 0.0000001); // Thêm nhiễu siêu vi không nghe được
-    }
-    return results;
-};
-""")
-
-# 12. DOMRect / ClientRects Fingerprint Spoofing (Làm mờ kích thước phần tử HTML)
+# STEALTH_SCRIPTS.append("""
+# // AudioContext spoofing
+# const originalGetChannelData = AudioBuffer.prototype.getChannelData;
+# AudioBuffer.prototype.getChannelData = function(channel) {
+#     const results = originalGetChannelData.apply(this, arguments);
+#     for (let i = 0; i < results.length; i += 100) {
+#         results[i] = results[i] + (Math.random() * 0.0000001); // Thêm nhiễu siêu vi không nghe được
+#     }
+#     return results;
+# };
+# """)
+# 12. DOMRect / ClientRects Fingerprint Spoofing (ĐÃ BỎ)
 # STEALTH_SCRIPTS.append("""
 # // DOMRect spoofing
 # const originalGetBoundingClientRect = Element.prototype.getBoundingClientRect;

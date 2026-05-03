@@ -7,6 +7,9 @@
     <title>Auto-Browser</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+    <!-- Monaco Editor Loader -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.46.0/min/vs/loader.min.js"></script>
 </head>
 
 <body>
@@ -55,7 +58,17 @@
 
                 <div class="content-body" id="profile-details" style="display: none;">
 
-                    <div class="card glass">
+                    <!-- Browser Info Card (Hiển thị browser của Profile đang chọn) -->
+                    <div class="card glass" id="browser-card">
+                        <h3><i class="fa-solid fa-globe"></i> Trình duyệt</h3>
+                        <div class="config-row">
+                            <label>Browser:</label>
+                            <span class="badge" id="lbl-browser-name">--</span>
+                        </div>
+                        <p class="text-dim text-sm mt-2">Thay đổi trình duyệt trong Settings của từng Profile.</p>
+                    </div>
+
+                    <div class="card glass mt-4">
                         <h3><i class="fa-solid fa-server"></i> Network & Proxy</h3>
                         <p><strong>Proxy:</strong> <span class="badge" id="lbl-proxy">None</span></p>
                     </div>
@@ -82,7 +95,8 @@
                                     <i class="fa-solid fa-stop"></i> Stop Sync
                                 </button>
                             </div>
-                            <p class="text-sm text-dim mt-2" id="sync-status-text">Chọn profile làm Root, các profile khác đang chạy sẽ trở thành Follower.</p>
+                            <p class="text-sm text-dim mt-2" id="sync-status-text">Chọn profile làm Root, các profile
+                                khác đang chạy sẽ trở thành Follower.</p>
                         </div>
                     </div>
 
@@ -135,9 +149,67 @@
                     <label>Proxy Password (Optional)</label>
                     <input type="password" id="inp-proxy-pass" placeholder="••••••••" class="input">
                 </div>
+                <div class="form-group">
+                    <label><i class="fa-solid fa-globe"></i> Trình duyệt</label>
+                    <div class="config-row">
+                        <select id="inp-browser" class="input" style="flex:1">
+                            <option value="">-- Mặc định (theo cài đặt chung) --</option>
+                        </select>
+                        <button class="btn btn-outline" id="btn-scan-browser-create" title="Quét trình duyệt">
+                            <i class="fa-solid fa-magnifying-glass"></i> Quét
+                        </button>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-primary" id="btn-submit-profile">Create Profile</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Edit Profile -->
+    <div class="modal-overlay" id="modal-edit-profile">
+        <div class="modal glass">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-gear"></i> Settings</h3>
+                <button class="btn-icon btn-close-any-modal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Proxy (IP:Port)</label>
+                    <input type="text" id="edit-proxy" placeholder="127.0.0.1:1080" class="input">
+                </div>
+                <div class="form-group">
+                    <label>Proxy Username</label>
+                    <input type="text" id="edit-proxy-user" placeholder="username" class="input">
+                </div>
+                <div class="form-group">
+                    <label>Proxy Password</label>
+                    <input type="password" id="edit-proxy-pass" placeholder="••••••••" class="input">
+                </div>
+                <div class="form-group">
+                    <label>User Agent (Giả lập cấu hình Thiết bị)</label>
+                    <input type="text" id="edit-user-agent" placeholder="Mozilla/5.0..." class="input">
+                </div>
+                <div class="form-group">
+                    <label>Ghi chú (Notes)</label>
+                    <input type="text" id="edit-notes" placeholder="Ghi chú thêm tên acc..." class="input">
+                </div>
+                <div class="form-group">
+                    <label><i class="fa-solid fa-globe"></i> Trình duyệt</label>
+                    <div class="config-row">
+                        <select id="edit-browser" class="input" style="flex:1">
+                            <option value="">-- Mặc định (theo cài đặt chung) --</option>
+                        </select>
+                        <button class="btn btn-outline" id="btn-scan-browser-edit" title="Quét trình duyệt">
+                            <i class="fa-solid fa-magnifying-glass"></i> Quét
+                        </button>
+                    </div>
+                    <span class="text-dim text-sm" id="edit-browser-current"></span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="btn-save-edit-profile"><i class="fa-solid fa-save"></i> LƯU CẤU HÌNH</button>
             </div>
         </div>
     </div>
@@ -209,8 +281,9 @@
                 </div>
                 <div class="form-group">
                     <label>JavaScript Code</label>
-                    <textarea id="editor-code" class="input code-editor" rows="12" spellcheck="false"
-                        placeholder="// Viết code JS ở đây&#10;document.title = 'Hello World';"></textarea>
+                    <div id="editor-container"
+                        style="height: 300px; border: 1px solid #334155; border-radius: 6px; overflow: hidden; margin-top: 5px;">
+                    </div>
                 </div>
                 <div class="config-row">
                     <div class="form-group" style="flex:1">
@@ -224,7 +297,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-primary" id="btn-save-script"><i class="fa-solid fa-save"></i> Save Script</button>
+                <button class="btn btn-primary" id="btn-save-script"><i class="fa-solid fa-save"></i> Save
+                    Script</button>
             </div>
         </div>
     </div>

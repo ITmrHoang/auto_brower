@@ -68,6 +68,7 @@ Single source of truth:
 # TESTING POLICY
 1. **Module Testing:** Test SAU KHI hoàn thiện module, không test từng task nhỏ lẻ.
 2. **E2E Testing:** Khi hoàn thành toàn bộ dự án, test lại toàn bộ hệ thống.
+3. **Bug Fix Testing:** Khi nhận yêu cầu fix bug, BẮT BUỘC phải chạy code/app để kiểm tra và test lại trực tiếp nhằm đảm bảo lỗi đã được khắc phục hoàn toàn. Không đoán mò kết quả.
 
 # CLEANUP POLICY
 - File media (`.png`, `.webp`) và log (`.txt`) sinh ra khi test → hỏi user giữ hay xóa sau khi hoàn thành.

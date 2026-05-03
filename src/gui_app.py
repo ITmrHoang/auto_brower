@@ -73,12 +73,17 @@ class ProfileCreateReq(BaseModel):
     proxy_password: Optional[str] = None
     user_agent: Optional[str] = None
     notes: Optional[str] = ""
+    browser_path: Optional[str] = ""
+    browser_name: Optional[str] = ""
 
 class ProfileUpdateReq(BaseModel):
     proxy: Optional[str] = None
     proxy_username: Optional[str] = None
     proxy_password: Optional[str] = None
+    user_agent: Optional[str] = None
     notes: Optional[str] = None
+    browser_path: Optional[str] = None
+    browser_name: Optional[str] = None
 
 class LaunchReq(BaseModel):
     profile_name: str
@@ -135,7 +140,8 @@ def create_profile(req: ProfileCreateReq):
             req.name, proxy=req.proxy, 
             proxy_username=req.proxy_username,
             proxy_password=req.proxy_password,
-            user_agent=req.user_agent, notes=req.notes
+            user_agent=req.user_agent, notes=req.notes,
+            browser_path=req.browser_path, browser_name=req.browser_name
         )
         return p
     except ValueError as e:
@@ -146,7 +152,8 @@ def create_profile(req: ProfileCreateReq):
 def update_profile(name: str, req: ProfileUpdateReq):
     assert profile_mgr is not None
     try:
-        updates = {k: v for k, v in req.model_dump().items() if v is not None}
+        # Nhận cả chuỗi rỗng để thao tác Cập nhật mang tính chất Xóa dữ liệu cũ (Xóa Proxy / Xóa UserAgent)
+        updates = req.model_dump(exclude_unset=True)
         if updates:
             p = profile_mgr.update(name, **updates)
             return p
@@ -404,3 +411,30 @@ def get_sync_status():
         "followers": list(sync_engine.followers) if sync_engine else [],
         "record_mode": getattr(sync_engine, 'record_mode', False) if sync_engine else False
     }
+
+
+# --- Browser Detection & Selection ---
+
+@app.get("/api/browsers")
+def get_installed_browsers():
+    """Trả về danh sách tất cả trình duyệt đã cài trên PC."""
+    assert config is not None
+    browsers = config.detect_installed_browsers()
+    current_name = config.browser_display_name
+    return {
+        "browsers": browsers,
+        "current": current_name
+    }
+
+
+class BrowserSelectReq(BaseModel):
+    path: str
+    name: str
+
+
+@app.post("/api/config/browser")
+def set_browser(req: BrowserSelectReq):
+    """Đặt trình duyệt sử dụng cho project."""
+    assert config is not None
+    config.set_browser(req.path, req.name)
+    return {"status": "success", "browser": req.name}

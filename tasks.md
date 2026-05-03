@@ -24,7 +24,13 @@
 
 ## Module: Xử lý Extension (v1.0.5)
 - [x] **Task 14:** Phân tích nguyên nhân lỗi `unsupported manifest version` do thay đổi chính sách Chromium (Manifest V3) hoặc sai path.
+- [ ] **Task 30:** Kiểm tra và xác minh điểm số trên các trang test (antcpt.com, pixelscan.io).
 - [x] **Task 15:** Điều xuất (Log) hướng dẫn để User có thể tự fetch Extension từ Google Chrome local sang project `auto_brower`.
+
+## Module: Auto-detect & Chọn trình duyệt (v1.2.1)
+- [x] **Task 31:** Nâng cấp `src/config.py` — Auto-detect Chromium local → Chrome → Edge → Brave → Playwright fallback.
+- [x] **Task 32:** Thêm API `GET /api/browsers` và `POST /api/config/browser` vào `src/gui_app.py`.
+- [x] **Task 33:** Thêm card "Trình duyệt đang dùng" với dropdown chọn browser vào `gui/index.html` và `gui/app.js`.
 
 ## Module: GUI - Sync, Script Runner & Editor (v1.1.0)
 - [x] **Task 16:** Thêm endpoint `POST /api/scripts/save` và nâng cấp `POST /api/scripts/run` hỗ trợ loop/delay (`gui_app.py`)

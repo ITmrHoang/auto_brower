@@ -385,6 +385,11 @@ def interactive(profiles, proxy, use_agent, sync_root):
             elif proxy:
                 mgr.set_proxy(name, proxy)
                 pc = mgr.get(name)
+                
+            if not pc:
+                console.print(f"[red]✗ Profile '{name}' is invalid or missing[/red]")
+                continue
+                
             try:
                 await launcher.launch(name, pc)
             except Exception as e:
@@ -450,9 +455,33 @@ def _open_gui_window():
         resizable=True,
         background_color="#0f172a"
     )
+
+    if window:
+        def on_closing():
+            result = window.create_confirmation_dialog( # type: ignore
+                'Xác nhận thoát', 
+                'Bạn có chắc chắn muốn thoát ứng dụng Auto-Browser và TẮT luồng Terminal ngầm không?'
+            )
+            if result:
+                console.print("\n[yellow]Shutting down system from GUI...[/yellow]")
+                try:
+                    import asyncio
+                    # get_launcher() is already available in the module scope
+                    launcher = get_launcher()
+                    loop = asyncio.new_event_loop()
+                    loop.run_until_complete(launcher.shutdown())
+                    loop.close()
+                except Exception:
+                    pass
+                import os
+                os._exit(0)
+            return False  # Hủy sự kiện rớt cửa sổ nếu user bấm Cancel
+
+        window.events.closing += on_closing # type: ignore
+
     # webview.start() blocks until window closes — run in thread
     webview.start()
-    console.print("[dim]GUI window closed. Server still running. Type 'open' to reopen or Ctrl+C to exit.[/dim]")
+    console.print("[dim]GUI window closed...[/dim]")
 
 
 # Keep a global reference to the Windows handler to prevent garbage collection
@@ -510,59 +539,72 @@ def start_gui():
     time.sleep(1)
     console.print("[green]✓ API Server started on http://127.0.0.1:8000[/green]")
 
-    # Open GUI window in separate thread (non-blocking)
-    gui_thread = threading.Thread(target=_open_gui_window, daemon=True)
-    gui_thread.start()
-    console.print("[green]✓ GUI window opened[/green]\n")
-
-    # Interactive CLI loop — keeps app alive
-    try:
-        while True:
-            try:
-                cmd = input("[auto-browser] > ").strip().lower()
-            except EOFError:
-                break
-            
-            if cmd in ("quit", "exit", "q"):
-                break
-            elif cmd == "open":
-                console.print("[cyan]Opening GUI window...[/cyan]")
-                t = threading.Thread(target=_open_gui_window, daemon=True)
-                t.start()
-            elif cmd == "status":
-                launcher = get_launcher()
-                running = launcher.list_running() if launcher else []
-                if running:
-                    console.print(f"[green]Running browsers:[/green] {', '.join(running)}")
+    def run_cli_loop():
+        # Interactive CLI loop — keeps app alive
+        try:
+            while True:
+                try:
+                    cmd = input("[auto-browser] > ").strip().lower()
+                except EOFError:
+                    break
+                
+                if cmd in ("quit", "exit", "q"):
+                    break
+                elif cmd == "open":
+                    console.print("[red]Lưu ý: Mở lại GUI sau khi đã đóng có thể làm ứng dụng văng do giới hạn của WebView2 OS API. Khuyến nghị khởi động lại tool.[/red]")
+                    import webview
+                    if not len(webview.windows):
+                        console.print("[cyan]Opening GUI window...[/cyan]")
+                        # Pywebview có thể crash nếu start lại trên Win, nên try-except
+                        try:
+                            threading.Thread(target=_open_gui_window, daemon=True).start()
+                        except Exception as e:
+                            console.print(f"[red]Error starting GUI: {e}[/red]")
+                elif cmd == "status":
+                    launcher = get_launcher()
+                    running = launcher.list_running() if launcher else []
+                    if running:
+                        console.print(f"[green]Running browsers:[/green] {', '.join(running)}")
+                    else:
+                        console.print("[yellow]No browsers running[/yellow]")
+                elif cmd == "help":
+                    console.print("[cyan]Commands:[/cyan]")
+                    console.print("  [bold]open[/bold]   — Mở lại cửa sổ GUI")
+                    console.print("  [bold]status[/bold] — Xem trạng thái browser")
+                    console.print("  [bold]quit[/bold]   — Thoát hoàn toàn")
+                elif cmd == "":
+                    pass
                 else:
-                    console.print("[yellow]No browsers running[/yellow]")
-            elif cmd == "help":
-                console.print("[cyan]Commands:[/cyan]")
-                console.print("  [bold]open[/bold]   — Mở lại cửa sổ GUI")
-                console.print("  [bold]status[/bold] — Xem trạng thái browser")
-                console.print("  [bold]quit[/bold]   — Thoát hoàn toàn")
-            elif cmd == "":
-                pass
-            else:
-                console.print(f"[dim]Unknown command: {cmd}. Type 'help' for available commands.[/dim]")
-    except KeyboardInterrupt:
-        pass
-    
-    console.print("\n[yellow]Shutting down...[/yellow]")
-    
-    # Graceful shutdown
-    launcher = get_launcher()
-    try:
-        loop = asyncio.new_event_loop()
-        loop.run_until_complete(launcher.shutdown())
-        loop.close()
-    except Exception:
-        pass
-    
-    console.print("[green]Goodbye! 👋[/green]")
-    import os
-    os._exit(0)
+                    console.print(f"[dim]Unknown command: {cmd}. Type 'help' for available commands.[/dim]")
+        except KeyboardInterrupt:
+            pass
+        
+        console.print("\n[yellow]Shutting down...[/yellow]")
+        
+        # Graceful shutdown
+        try:
+            launcher = get_launcher()
+            loop = asyncio.new_event_loop()
+            loop.run_until_complete(launcher.shutdown())
+            loop.close()
+        except Exception:
+            pass
+        
+        console.print("[green]Goodbye! 👋[/green]")
+        import os
+        os._exit(0)
 
+    # Khởi chạy luồng nhập lệnh (CLI) ngầm
+    cli_thread = threading.Thread(target=run_cli_loop, daemon=True)
+    cli_thread.start()
+    
+    # Trả lại Main Thread cho WebView chạy GUI (Bắt buộc theo OS Rules)
+    console.print("[green]✓ GUI window opened on MAIN thread[/green]\n")
+    _open_gui_window()
+    
+    # Sau khi cửa sổ GUI tắt bởi user, Main Thread sẽ trôi tới đây.
+    # Ta giữ Main Thread sống cho tới khi cli_thread tắt (user gõ quit)
+    cli_thread.join()
 
 if __name__ == "__main__":
     cli()

@@ -36,7 +36,8 @@ class ProfileManager:
 
     def create(self, name: str, proxy: Optional[str] = None,
                proxy_username: Optional[str] = None, proxy_password: Optional[str] = None,
-               user_agent: Optional[str] = None, notes: str = "") -> dict:
+               user_agent: Optional[str] = None, notes: str = "",
+               browser_path: Optional[str] = None, browser_name: Optional[str] = None) -> dict:
         """Create a new browser profile."""
         profile_dir = self._profile_dir(name)
         if profile_dir.exists():
@@ -62,7 +63,9 @@ class ProfileManager:
             "proxy_password": proxy_password,
             "user_agent": user_agent,
             "notes": notes,
-            "fingerprint": generate_fingerprint(seed=name, proxy=proxy_url),  # Generated once immediately and saved permanently
+            "browser_path": browser_path or "",
+            "browser_name": browser_name or "",
+            "fingerprint": generate_fingerprint(seed=name, proxy=proxy_url, custom_user_agent=user_agent),
             "created_at": datetime.now().isoformat(),
             "last_used": None,
             "extensions": [],
@@ -94,7 +97,7 @@ class ProfileManager:
                 else:
                     proxy_url = f"http://{user}:{pw}@{proxy_url}"
                     
-            profile["fingerprint"] = generate_fingerprint(seed=name, proxy=proxy_url)
+            profile["fingerprint"] = generate_fingerprint(seed=name, proxy=proxy_url, custom_user_agent=profile.get("user_agent"))
             with open(config_path, "w", encoding="utf-8") as f2:
                 json.dump(profile, f2, indent=2, ensure_ascii=False)
                 
@@ -106,12 +109,13 @@ class ProfileManager:
         if not profile:
             raise ValueError(f"Profile '{name}' not found")
             
-        # Nếu có hành động liên quan tới cập nhật / xoá Proxy, ta sẽ tái tạo cấu trúc IP-Geo của Fingerprint
-        proxy_keys = ["proxy", "proxy_username", "proxy_password"]
-        if any(k in kwargs for k in proxy_keys):
+        # Nếu có hành động liên quan tới cập nhật / xoá Proxy HOẶC Đổi UserAgent, ta sẽ tái tạo lại Cấu trúc Fingerprint cho PHÙ HỢP
+        update_keys = ["proxy", "proxy_username", "proxy_password", "user_agent"]
+        if any(k in kwargs for k in update_keys):
             p_url = kwargs.get("proxy", profile.get("proxy"))
             user = kwargs.get("proxy_username", profile.get("proxy_username"))
             pw = kwargs.get("proxy_password", profile.get("proxy_password"))
+            custom_ua = kwargs.get("user_agent", profile.get("user_agent"))
             
             req_proxy = p_url
             if p_url and user and pw:
@@ -121,7 +125,7 @@ class ProfileManager:
                 else:
                     req_proxy = f"http://{user}:{pw}@{p_url}"
                     
-            profile["fingerprint"] = generate_fingerprint(seed=name, proxy=req_proxy)
+            profile["fingerprint"] = generate_fingerprint(seed=name, proxy=req_proxy, custom_user_agent=custom_ua)
             
         profile.update(kwargs)
         with open(self._profile_config_path(name), "w", encoding="utf-8") as f:

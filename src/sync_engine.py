@@ -17,6 +17,8 @@ from typing import Optional, List, Set
 
 from rich.console import Console
 
+from . import human_behavior
+
 console = Console()
 
 
@@ -141,6 +143,10 @@ class SyncEngine:
         self._task: Optional[asyncio.Task] = None
         self._poll_interval = 0.3  # seconds
         
+        # Follower queues
+        self.follower_queues = {}
+        self.follower_tasks = {}
+        
         # Recording mode
         self.record_mode = False
         self.recorded_events = []
@@ -165,11 +171,14 @@ class SyncEngine:
         if profile_name == self.root_profile:
             raise ValueError("Cannot add root browser as follower")
         self.followers.add(profile_name)
+        if self._running:
+            self._start_follower_task(profile_name)
         console.print(f"[green]➕ Added follower:[/green] [bold]{profile_name}[/bold]")
 
     def remove_follower(self, profile_name: str):
         """Remove a follower browser."""
         self.followers.discard(profile_name)
+        self._stop_follower_task(profile_name)
         console.print(f"[red]➖ Removed follower:[/red] [bold]{profile_name}[/bold]")
 
     async def start(self):
@@ -197,6 +206,10 @@ class SyncEngine:
         # Dùng `asyncio.ensure_future()` để biến việc tiêm lại (hàm bất đồng bộ `_reinject_capture`)
         # thành một công việc chạy ở chế độ nền (Background task) nhằm không làm chặn (blocking) tiến trình chính.
         root_page.on("load", lambda: asyncio.ensure_future(self._reinject_capture(root_page)))
+
+        # Start follower worker tasks
+        for fname in self.followers:
+            self._start_follower_task(fname)
 
         # Start the sync loop
         self._task = asyncio.create_task(self._sync_loop())
@@ -240,14 +253,14 @@ class SyncEngine:
                 except Exception:
                     events = []
 
-                # 3. TÁI LẬP HÀNH ĐỘNG LÊN TOÀN BỘ CLIENT (Replay Events Dispatcher)
-                # Với từng sự kiện lấy được (click, input...), ném nó qua hàm _replay_event
-                # để tái hiện lại nó trên tất cả các trình duyệt con.
+                # 3. ĐẨY HÀNH ĐỘNG VÀO HÀNG ĐỢI (Queue Dispatcher)
                 for event in events:
                     if self.record_mode:
                         self.recorded_events.append(event)
                     else:
-                        await self._replay_event(event)
+                        for fname in self.followers:
+                            if fname in self.follower_queues:
+                                self.follower_queues[fname].put_nowait(event)
 
             except asyncio.CancelledError:
                 break
@@ -272,24 +285,36 @@ class SyncEngine:
         except Exception:
             pass
 
-    async def _replay_event(self, event: dict):
-        """Phân phối 1 hành động của người dùng (từ Root) lên mọi Follower (Clients)."""
-        event_type = event.get("type")
-        tasks = []
+    def _start_follower_task(self, fname: str):
+        if fname not in self.follower_queues:
+            self.follower_queues[fname] = asyncio.Queue()
+        if fname in self.follower_tasks and not self.follower_tasks[fname].done():
+            return
+        self.follower_tasks[fname] = asyncio.create_task(self._follower_worker(fname))
 
-        # Lặp qua tất cả Follower hiện tại và thu thập các Task tái lập hành động.
-        for fname in list(self.followers):
-            inst = self.launcher.get_instance(fname)
-            if not inst or not inst.active_page:
-                continue
-            page = inst.active_page
-            # Gắn lệnh bắt trang Client tái lập chuỗi event vào trong một Task.
-            tasks.append(self._replay_single(page, event))
+    def _stop_follower_task(self, fname: str):
+        if fname in self.follower_tasks:
+            self.follower_tasks[fname].cancel()
+            del self.follower_tasks[fname]
+        if fname in self.follower_queues:
+            del self.follower_queues[fname]
 
-        # Sử dụng asyncio.gather để phóng đồng loạt các tác vụ này (chạy song song).
-        # Tức là nếu có 10 clients, hành động Click sẽ diễn ra gần như cùng 1 lúc trên cả 10 tabs thay vì đợi tuần tự.
-        if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+    async def _follower_worker(self, fname: str):
+        """Worker chạy ngầm lấy event từ queue của từng Follower và thực thi theo tuần tự (FIFO)."""
+        queue = self.follower_queues.get(fname)
+        if not queue:
+            return
+        while self._running:
+            try:
+                event = await queue.get()
+                inst = self.launcher.get_instance(fname)
+                if inst and inst.active_page:
+                    await self._replay_single(inst.active_page, event)
+                queue.task_done()
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                pass
 
     async def _replay_single(self, page, event: dict):
         """Replay a single event on a single page."""
@@ -298,17 +323,22 @@ class SyncEngine:
             selector = event.get("selector")
 
             if event_type == "click":
-                if selector:
-                    try:
-                        await page.click(selector, timeout=3000)
-                    except Exception:
-                        # Fallback: click by coordinates
-                        x, y = event.get("x", 0), event.get("y", 0)
-                        await page.mouse.click(x, y)
+                x, y = event.get("x", 0), event.get("y", 0)
+                await human_behavior.click_humanly(page, selector=selector, x=x, y=y)
+                # --- Đoạn code cũ ---
+                # if selector:
+                #     try:
+                #         await page.click(selector, timeout=3000)
+                #     except Exception:
+                #         # Fallback: click by coordinates
+                #         x, y = event.get("x", 0), event.get("y", 0)
+                #         await page.mouse.click(x, y)
 
             elif event_type == "input":
                 if selector:
-                    await page.fill(selector, event.get("value", ""), timeout=3000)
+                    await human_behavior.type_humanly(page, selector, event.get("value", ""))
+                    # --- Đoạn code cũ ---
+                    # await page.fill(selector, event.get("value", ""), timeout=3000)
 
             elif event_type == "scroll":
                 sx, sy = event.get("scrollX", 0), event.get("scrollY", 0)
@@ -324,6 +354,8 @@ class SyncEngine:
     async def stop(self):
         """Stop syncing."""
         self._running = False
+        for fname in list(self.followers):
+            self._stop_follower_task(fname)
         if self._task:
             self._task.cancel()
             try:

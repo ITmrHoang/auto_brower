@@ -6,3 +6,4 @@ prompt_toolkit>=3.0.0
 fastapi>=0.100.0
 uvicorn>=0.23.0
 pywebview>=4.3.3
+requests>=2.31.0
